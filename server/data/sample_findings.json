@@ -1,0 +1,50 @@
+[
+  {
+    "id": "F-1001",
+    "title": "OpenSSL buffer overflow",
+    "cve": "CVE-2023-12345",
+    "cvss": 8.9,
+    "epss": 0.72,
+    "kev": true,
+    "asset": {
+      "name": "edge-proxy-01",
+      "criticality": "high",
+      "exposure": "internet",
+      "data_sensitivity": "pci"
+    },
+    "effort_hours": 6,
+    "sla_days": 14
+  },
+  {
+    "id": "F-1002",
+    "title": "Outdated VPN firmware",
+    "cve": "CVE-2024-9876",
+    "cvss": 7.4,
+    "epss": 0.41,
+    "kev": false,
+    "asset": {
+      "name": "vpn-gateway-02",
+      "criticality": "medium",
+      "exposure": "internet",
+      "data_sensitivity": "pii"
+    },
+    "effort_hours": 8,
+    "sla_days": 30
+  },
+  {
+    "id": "F-1003",
+    "title": "Unpatched database service",
+    "cve": "CVE-2022-56789",
+    "cvss": 6.1,
+    "epss": 0.12,
+    "kev": false,
+    "asset": {
+      "name": "payments-db-01",
+      "criticality": "critical",
+      "exposure": "internal",
+      "data_sensitivity": "pci"
+    },
+    "effort_hours": 12,
+    "sla_days": 45
+  }
+]

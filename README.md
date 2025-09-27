@@ -87,9 +87,9 @@ cd riskalign-ai
 ```bash
 cd server
 python -m venv .venv
-source .venv/bin/activate  # Windows: .venv\Scriptsctivate
+source .venv/bin/activate  # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
-uvicorn main:app --reload --port 8000
+uvicorn server.main:app --reload --port 8000
 ```
 
 ### 3) Frontend
@@ -100,7 +100,7 @@ npm run dev
 ```
 Open `http://localhost:5173`
 
-> **Tip:** Start with the provided `data/sample_findings.json` to explore the Plan/Compliance/Narratives tabs immediately.
+> **Tip:** The workspace auto-loads `server/data/sample_findings.json`. Adjust the wave capacity in the header to see plan/compliance/narrative views update instantly.
 
 ---
 
@@ -118,13 +118,16 @@ Open `http://localhost:5173`
 ---
 
 ## 🔌 API Surface (REST)
-- `POST /api/score/compute` → final scores + contributions + rules applied  
-- `POST /api/optimize/plan` → remediation waves by risk/effort ratio  
-- `POST /api/map/controls` → CVE → control mappings (CIS/NIST/ISO)  
-- `POST /api/impact/estimate` → breach $ and compliance % estimates  
-- `POST /api/summary/generate` → one‑page HTML summary  
-- `POST /api/nl/query` → natural‑language intent → tool calls  
+- `GET /health` → lightweight readiness probe
+- `GET /api/findings/sample` → sample dataset used by the UI
+- `POST /api/score/compute` → final scores + contributions + rules applied
+- `POST /api/optimize/plan` → remediation waves by risk/effort ratio
+- `POST /api/map/controls` → CVE → control mappings (CIS/NIST/ISO)
+- `POST /api/impact/estimate` → breach $ and compliance % estimates
+- `POST /api/summary/generate` → one-page HTML summary
+- `POST /api/nl/query` → natural-language intent → tool calls
 - `POST /api/feedback/submit` → log analyst feedback for adaptive weights
+- `GET /api/feedback/recent` → retrieve the latest analyst responses
 
 ---
 
