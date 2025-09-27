@@ -1,0 +1,11 @@
+{
+  "weights": {
+    "confidentiality": 0.4,
+    "integrity": 0.35,
+    "availability": 0.25
+  },
+  "scale": {
+    "min": 0,
+    "max": 100
+  }
+}

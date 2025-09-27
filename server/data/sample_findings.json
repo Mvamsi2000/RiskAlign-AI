@@ -1,0 +1,14 @@
+[
+  {
+    "id": "finding-001",
+    "control": "CIS-01",
+    "description": "Unmanaged workstations detected on corporate network",
+    "severity": "high"
+  },
+  {
+    "id": "finding-002",
+    "control": "CIS-02",
+    "description": "Unapproved software installations",
+    "severity": "medium"
+  }
+]

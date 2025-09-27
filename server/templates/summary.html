@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>RiskAlign-AI Summary</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        margin: 2rem;
+        color: #222;
+      }
+      h1 {
+        color: #0b7285;
+      }
+      section {
+        margin-bottom: 1.5rem;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>RiskAlign-AI Executive Summary</h1>
+    <section>
+      <h2>Risk Posture</h2>
+      <p>{{ risk_posture }}</p>
+    </section>
+    <section>
+      <h2>Key Initiatives</h2>
+      <ul>
+        {% for initiative in initiatives %}
+        <li>{{ initiative }}</li>
+        {% endfor %}
+      </ul>
+    </section>
+    <section>
+      <h2>Next Steps</h2>
+      <p>{{ next_steps }}</p>
+    </section>
+  </body>
+</html>

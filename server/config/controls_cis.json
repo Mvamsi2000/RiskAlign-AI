@@ -1,0 +1,14 @@
+{
+  "CIS-01": {
+    "description": "Inventory and control of enterprise assets",
+    "category": "identify"
+  },
+  "CIS-02": {
+    "description": "Inventory and control of software assets",
+    "category": "identify"
+  },
+  "CIS-03": {
+    "description": "Data protection",
+    "category": "protect"
+  }
+}
