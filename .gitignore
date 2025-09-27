@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyc
+*.pyo
+*.pyd
+*.sqlite3
+*.db
+.venv/
+.env
+
+# FastAPI generated artifacts
+server/data/feedback.log
+
+# Node / React
+client/node_modules/
+client/dist/
+client/.vite/
+
+# OS
+.DS_Store
+Thumbs.db

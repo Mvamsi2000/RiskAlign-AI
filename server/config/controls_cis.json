@@ -1,0 +1,26 @@
+{
+  "CVE-2024-12345": [
+    {
+      "control": "CIS 04.1",
+      "title": "Establish and Maintain a Secure Configuration Process",
+      "description": "Ensure VPN appliances follow a hardened baseline and timely patching cadence."
+    },
+    {
+      "control": "CIS 08.2",
+      "title": "Mitigate Network-Based Attacks",
+      "description": "Ensure perimeter devices are patched to remediate known remote code execution flaws."
+    }
+  ],
+  "CVE-2024-22222": [
+    {
+      "control": "CIS 03.4",
+      "title": "Perform Automated Operating System Patching",
+      "description": "Automate deployment of vendor patches for databases and critical servers."
+    },
+    {
+      "control": "CIS 13.7",
+      "title": "Implement Application Patching",
+      "description": "Prioritize vendor security advisories aligned with critical business systems."
+    }
+  ]
+}

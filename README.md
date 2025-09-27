@@ -87,10 +87,12 @@ cd riskalign-ai
 ```bash
 cd server
 python -m venv .venv
-source .venv/bin/activate  # Windows: .venv\Scriptsctivate
+source .venv/bin/activate  # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
-uvicorn main:app --reload --port 8000
+uvicorn server.main:app --reload --port 8000
 ```
+
+This boots the FastAPI MVP with endpoints for scoring, planning, compliance mapping, summaries, and NL routing. Configuration defaults live under `server/config/` and demo datasets under `server/data/`.
 
 ### 3) Frontend
 ```bash
@@ -98,7 +100,7 @@ cd ../client
 npm install
 npm run dev
 ```
-Open `http://localhost:5173`
+Open `http://localhost:5173` to explore the React dashboard with Scores, Plan, Compliance, and Narratives tabs. The sample dataset powers all tabs immediately.
 
 > **Tip:** Start with the provided `data/sample_findings.json` to explore the Plan/Compliance/Narratives tabs immediately.
 

@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>RiskAlign-AI Executive Summary</title>
+    <style>
+      body {
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        margin: 2rem;
+        color: #1b1b1f;
+        background: #f7f9fc;
+      }
+      header {
+        border-bottom: 2px solid #0c5;
+        margin-bottom: 1.5rem;
+      }
+      h1 {
+        margin-bottom: 0.25rem;
+      }
+      section {
+        margin-bottom: 1.5rem;
+        background: #fff;
+        border-radius: 8px;
+        padding: 1rem 1.5rem;
+        box-shadow: 0 1px 3px rgba(17, 24, 39, 0.08);
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 1rem;
+      }
+      .badge {
+        font-weight: 600;
+        color: #0c5;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+      }
+      th,
+      td {
+        text-align: left;
+        padding: 0.5rem;
+        border-bottom: 1px solid #e3e8ef;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>RiskAlign-AI Executive Summary</h1>
+      <p><strong>Scope:</strong> {{ scope }}</p>
+    </header>
+
+    <section class="grid">
+      <div>
+        <h2>Priority Mix</h2>
+        <ul>
+          <li>Critical: <span class="badge">{{ priorities["critical"] }}</span></li>
+          <li>High: <span class="badge">{{ priorities["high"] }}</span></li>
+          <li>Medium: <span class="badge">{{ priorities["medium"] }}</span></li>
+          <li>Low: <span class="badge">{{ priorities["low"] }}</span></li>
+        </ul>
+      </div>
+      <div>
+        <h2>Average Risk Score</h2>
+        <p class="badge" style="font-size: 2.25rem">{{ avg_score }}</p>
+      </div>
+      <div>
+        <h2>Total Effort</h2>
+        <p>{{ total_hours }} remediation hours across assessed findings.</p>
+      </div>
+    </section>
+
+    <section>
+      <h2>Top Prioritized Findings</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Finding</th>
+            <th>Score</th>
+            <th>Priority</th>
+            <th>Recommended Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in findings[:5] %}
+          <tr>
+            <td>{{ item.finding.title }}</td>
+            <td>{{ item.score }}</td>
+            <td>{{ item.priority|title }}</td>
+            <td>{{ item.recommended_action }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>Explainability Snapshot</h2>
+      <p>The following signals contributed the most weight across the prioritized findings:</p>
+      <ul>
+        {% for item in findings[:3] %}
+        <li>
+          <strong>{{ item.finding.title }}:</strong>
+          {{ item.contributions[0].signal }} ({{ item.contributions[0].impact|round(2) }}) ·
+          {{ item.contributions[1].signal }} ({{ item.contributions[1].impact|round(2) }})
+        </li>
+        {% endfor %}
+      </ul>
+    </section>
+  </body>
+</html>
