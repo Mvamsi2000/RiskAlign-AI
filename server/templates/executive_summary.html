@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>RiskAlign-AI Executive Summary</title>
+    <style>
+      body { font-family: Arial, sans-serif; margin: 2rem; color: #1f2933; }
+      h1, h2 { color: #0b7285; }
+      .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1.5rem; }
+      .card { border: 1px solid #ced4da; border-radius: 8px; padding: 1rem; box-shadow: 0 2px 4px rgba(15, 23, 42, 0.08); }
+      table { border-collapse: collapse; width: 100%; }
+      th, td { text-align: left; border-bottom: 1px solid #dee2e6; padding: 0.5rem; }
+    </style>
+  </head>
+  <body>
+    <h1>Executive Summary</h1>
+    <p>{{ narrative }}</p>
+
+    <div class="grid">
+      <div class="card">
+        <h2>Top Priorities</h2>
+        <ol>
+          {% for item in top_findings %}
+          <li>{{ item.id }} — {{ item.title }} ({{ item.priority }})</li>
+          {% endfor %}
+        </ol>
+      </div>
+      <div class="card">
+        <h2>Risk Reduction</h2>
+        <p><strong>Potential Reduction:</strong> {{ impact.breach_reduction|round(1) }}%</p>
+        <p><strong>Compliance Gain:</strong> {{ impact.compliance_gain|round(1) }}%</p>
+      </div>
+    </div>
+
+    <h2>Control Coverage</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Control</th>
+          <th>Finding</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for mapping in controls %}
+        <tr>
+          <td>{{ mapping.control }}</td>
+          <td>{{ mapping.finding }}</td>
+          <td>{{ mapping.description }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </body>
+</html>

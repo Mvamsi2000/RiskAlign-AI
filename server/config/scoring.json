@@ -1,0 +1,32 @@
+{
+  "weights": {
+    "cvss": 0.6,
+    "epss": 0.25,
+    "kev": 0.1,
+    "context": 0.05
+  },
+  "context_modifiers": {
+    "criticality": {
+      "critical": 1.2,
+      "high": 1.1,
+      "medium": 1.0,
+      "low": 0.9
+    },
+    "exposure": {
+      "internet": 1.15,
+      "internal": 1.0,
+      "isolated": 0.85
+    },
+    "data_sensitivity": {
+      "pci": 1.15,
+      "pii": 1.1,
+      "internal": 1.0
+    }
+  },
+  "priority_buckets": [
+    {"name": "Critical", "min": 9.0},
+    {"name": "High", "min": 7.0},
+    {"name": "Medium", "min": 4.0},
+    {"name": "Low", "min": 0.0}
+  ]
+}
