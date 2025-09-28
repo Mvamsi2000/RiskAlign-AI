@@ -29,30 +29,29 @@ export function useRiskData(maxHoursPerWave: number) {
   });
 
   const controlsQuery = useQuery({
-    queryKey: ["controls", findingsQuery.data?.map((item) => item.cve)],
+    queryKey: ["controls", findingsQuery.data],
     enabled: Boolean(findingsQuery.data?.some((item) => item.cve)),
-    queryFn: () =>
-      mapControls(
-        (findingsQuery.data ?? [])
-          .map((item) => item.cve)
-          .filter((cve): cve is string => Boolean(cve))
-      )
+    queryFn: () => mapControls(findingsQuery.data ?? [])
   });
 
   const impactQuery = useQuery({
-    queryKey: ["impact", findingsQuery.data],
-    enabled: Boolean(findingsQuery.data?.length),
-    queryFn: () => estimateImpact(findingsQuery.data ?? [])
+    queryKey: ["impact", findingsQuery.data, wavesQuery.data],
+    enabled: Boolean(findingsQuery.data?.length && wavesQuery.data?.waves.length),
+    queryFn: () => estimateImpact(findingsQuery.data ?? [], wavesQuery.data?.waves ?? [])
   });
 
   const summaryQuery = useQuery({
-    queryKey: ["summary", findingsQuery.data],
+    queryKey: ["summary", findingsQuery.data, maxHoursPerWave],
     enabled: Boolean(findingsQuery.data?.length),
-    queryFn: () => generateSummary(findingsQuery.data ?? [])
+    queryFn: () =>
+      generateSummary({
+        findings: findingsQuery.data ?? [],
+        max_hours_per_wave: maxHoursPerWave
+      })
   });
 
   const priorityCards = useMemo(() => {
-    const counts = scoresQuery.data?.summary.counts_by_priority ?? {};
+    const counts = scoresQuery.data?.totals.by_priority ?? {};
     return Object.entries(counts).map(([priority, count]) => ({
       priority,
       count

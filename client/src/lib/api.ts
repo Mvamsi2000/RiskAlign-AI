@@ -8,82 +8,122 @@ export interface AssetContext {
 }
 
 export interface Finding {
-  id: string;
-  title: string;
+  id?: string;
+  title?: string;
   cve?: string;
   cvss: number;
   epss?: number;
+  mvi?: number;
   kev?: boolean;
   asset?: AssetContext;
   effort_hours?: number;
-  sla_days?: number;
 }
 
-export interface ScoreContribution {
-  name: string;
-  weight: number;
-  value: number;
-  contribution: number;
-  description: string;
+export interface ScoreComponents {
+  cvss: number;
+  epss: number;
+  mvi: number;
+  kev: number;
+  context: number;
 }
 
-export interface ScoredFinding {
-  id: string;
-  title: string;
+export interface ScoreFinding {
+  id?: string;
+  title?: string;
   score: number;
   priority: string;
-  contributions: ScoreContribution[];
-  narrative: string;
-  rules_applied: string[];
+  effort_hours: number;
+  components: ScoreComponents;
+  context_multiplier: number;
+}
+
+export interface ScoreTotals {
+  count: number;
+  total_score: number;
+  average_score: number;
+  total_effort_hours: number;
+  by_priority: Record<string, number>;
 }
 
 export interface ScoreComputeResponse {
-  results: ScoredFinding[];
-  summary: {
-    counts_by_priority: Record<string, number>;
-    generated_at: string;
-  };
+  findings: ScoreFinding[];
+  totals: ScoreTotals;
+}
+
+export interface PlanItem {
+  id?: string;
+  title?: string;
+  priority: string;
+  effort_hours: number;
+  score: number;
+  risk_saved: number;
+}
+
+export interface RemediationWave {
+  name: string;
+  total_hours: number;
+  risk_saved: number;
+  items: PlanItem[];
+}
+
+export interface PlanTotals {
+  waves: number;
+  total_hours: number;
+  total_risk_saved: number;
 }
 
 export interface OptimizePlanResponse {
-  waves: {
-    name: string;
-    total_hours: number;
-    expected_risk_reduction: number;
-    items: {
-      id: string;
-      title: string;
-      effort_hours: number;
-      score: number;
-      risk_reduction: number;
-    }[];
-  }[];
+  waves: RemediationWave[];
+  totals: PlanTotals;
 }
 
 export interface ControlMapping {
+  cve: string;
   control: string;
   description: string;
-  finding: string;
+  finding_id?: string;
 }
 
 export interface MapControlsResponse {
+  framework: string;
+  coverage: number;
+  unique_controls: string[];
   mappings: ControlMapping[];
+  unmapped: string[];
+}
+
+export interface RiskCurvePoint {
+  wave: string;
+  cumulative_risk_saved: number;
+  percent_of_total: number;
 }
 
 export interface ImpactEstimateResponse {
-  breach_reduction: number;
-  compliance_gain: number;
-  rationale: string;
+  readiness_percent: number;
+  compliance_boost: number;
+  risk_saved_curve: RiskCurvePoint[];
+  controls_covered: string[];
 }
 
 export interface NLQueryResponse {
   intent: string;
   response: string;
-  details: Record<string, number>;
+  details: {
+    matched_keywords: string[];
+    confidence: number;
+    endpoint: string | null;
+  };
 }
 
 export interface SummaryGenerateResponse {
+  path: string;
   html: string;
+}
+
+export interface FeedbackResponse {
+  status: string;
+  path: string;
+  recorded_at: string;
 }
 
 const client = axios.create({
@@ -108,13 +148,19 @@ export async function optimizePlan(findings: Finding[], maxHoursPerWave: number)
   return data;
 }
 
-export async function mapControls(cves: string[]): Promise<MapControlsResponse> {
-  const { data } = await client.post<MapControlsResponse>("/map/controls", { cves });
+export async function mapControls(findings: Finding[], framework = "CIS"): Promise<MapControlsResponse> {
+  const { data } = await client.post<MapControlsResponse>("/map/controls", {
+    findings,
+    framework
+  });
   return data;
 }
 
-export async function estimateImpact(findings: Finding[]): Promise<ImpactEstimateResponse> {
-  const { data } = await client.post<ImpactEstimateResponse>("/impact/estimate", { findings });
+export async function estimateImpact(findings: Finding[], waves: RemediationWave[]): Promise<ImpactEstimateResponse> {
+  const { data } = await client.post<ImpactEstimateResponse>("/impact/estimate", {
+    findings,
+    waves
+  });
   return data;
 }
 
@@ -123,7 +169,21 @@ export async function queryIntent(query: string): Promise<NLQueryResponse> {
   return data;
 }
 
-export async function generateSummary(findings: Finding[]): Promise<SummaryGenerateResponse> {
-  const { data } = await client.post<SummaryGenerateResponse>("/summary/generate", { findings });
+export async function generateSummary(options: {
+  findings?: Finding[];
+  scope?: string;
+  framework?: string;
+  max_hours_per_wave?: number;
+}): Promise<SummaryGenerateResponse> {
+  const { data } = await client.post<SummaryGenerateResponse>("/summary/generate", options);
+  return data;
+}
+
+export async function submitFeedback(payload: {
+  finding_id: string;
+  action: string;
+  comment?: string;
+}): Promise<FeedbackResponse> {
+  const { data } = await client.post<FeedbackResponse>("/feedback/submit", payload);
   return data;
 }
