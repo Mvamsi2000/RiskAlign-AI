@@ -1,13 +1,8 @@
 {
-  "CVE-2023-12345": [
-    {"control": "CIS 4.1", "description": "Establish and Maintain a Secure Configuration Process"},
-    {"control": "CIS 6.2", "description": "Establish a Vulnerability Management Process"}
-  ],
-  "CVE-2024-9876": [
-    {"control": "CIS 7.6", "description": "Remediate Detected Vulnerabilities"}
-  ],
-  "CVE-2022-56789": [
-    {"control": "CIS 3.3", "description": "Configure Automatic Session Locking"},
-    {"control": "CIS 4.9", "description": "Manage Machine Identities"}
-  ]
+  "CIS": {
+    "1": {
+      "name": "Inventory and Control of Enterprise Assets",
+      "description": "Actively manage inventory of all enterprise assets."
+    }
+  }
 }
