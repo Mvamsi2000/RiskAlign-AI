@@ -1,7 +1,7 @@
 """HTML report rendering service."""
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Dict
 
@@ -89,7 +89,7 @@ def generate_summary(payload: SummaryRequest) -> SummaryGenerateResponse:
         mapping = map_to_controls(MappingRequest(findings=findings, framework="CIS"))
 
     template = _ENV.get_template("executive_summary.html")
-    generated_at = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
+    generated_at = datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC")
 
     context = {
         "generated_at": generated_at,
@@ -104,7 +104,7 @@ def generate_summary(payload: SummaryRequest) -> SummaryGenerateResponse:
 
     html = template.render(**context)
 
-    timestamp = datetime.utcnow().strftime("%Y%m%d%H%M%S")
+    timestamp = datetime.now(UTC).strftime("%Y%m%d%H%M%S")
     filename = f"executive-summary-{timestamp}.html"
     report_path = _OUTPUT_DIR / filename
     report_path.write_text(html, encoding="utf-8")
