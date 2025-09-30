@@ -1,0 +1,15 @@
+.DS_Store
+server/output/**
+server/data/**
+!server/data/samples/**
+!server/data/epss.csv
+!server/data/kev.txt
+client/node_modules/**
+**/__pycache__/**
+*.pyc
+*.node
+*.bin
+*.dylib
+*.so
+*.exe
+*.dll
