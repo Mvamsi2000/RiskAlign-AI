@@ -101,7 +101,7 @@ npm run dev
 ```
 Open `http://localhost:5173`
 
-> **Tip:** The workspace auto-loads `server/data/sample_findings.json`. Adjust the wave capacity in the header to see plan/compliance/narrative views update instantly.
+> **Tip:** The workspace auto-loads the latest canonical JSONL under `server/output/<namespace>/canonical/`. Without any uploads it falls back to `server/data/sample_findings.json` so every view continues to work out of the box.
 
 ---
 
@@ -113,20 +113,77 @@ Open `http://localhost:5173`
 **Priority Buckets (default):**
 - 9.0–10.0 = Critical, 7.0–8.99 = High, 4.0–6.99 = Medium, else Low
 
-**Signals used:** CVSS base, **EPSS**, **KEV**, vendor index (if present)  
+**Signals used:** CVSS base, **EPSS**, **KEV**, vendor index (if present)
 **Context used:** asset criticality, exposure, data sensitivity, SLA/effort
+
+---
+
+## 📥 Import & Canonical Datasets
+- Drag & drop `.nessus`, `.csv`, or `.log` files in the **Import** tab or POST a file to `/api/ingest/upload`.
+- The ingestion pipeline auto-detects the adapter, enriches with local **EPSS/KEV** caches, wraps the result in an MCP envelope, and writes JSONL files under `server/output/<namespace>/canonical/`.
+- The UI (and `/api/findings/canonical`) always serves the most recent batch; select older batches from the header dropdown to revisit prior uploads.
+
+```bash
+curl -X POST "http://localhost:8000/api/ingest/upload" \
+  -H "X-Namespace: demo" \
+  -F "file=@server/data/sample_network.csv"
+```
+
+- `GET /api/ingest/batches` returns batch metadata, and the helper CLI/JSON schemas live in `server/schemas/json/`.
+
+---
+
+## 🤖 AI Modes (Local vs Online)
+- **Default = Local (Ollama):** the backend uses a local Ollama service for narratives/explanations. Launch Ollama and pull the model once:
+
+  ```bash
+  ollama pull llama3:8b
+  ollama run llama3:8b --keep-alive
+  ```
+
+- **Online (OpenAI):** set `OPENAI_API_KEY` and switch via the UI dropdown (header → “AI mode”). The client persists the choice and sends `X-AI-Provider` on every API call.
+- **Per-tenant override:** POST a config with an admin key to save `config/namespaces/<namespace>/ai.json`.
+
+  ```bash
+  curl -X POST "http://localhost:8000/api/ai/config" \
+    -H "Content-Type: application/json" \
+    -H "X-Admin-Key: <your-admin-key>" \
+    -H "X-Namespace: demo" \
+    -d '{"ai_provider":"online"}'
+  ```
+
+- **Env toggles:** `.env.example` lists `AI_PROVIDER_DEFAULT`, base URLs/models, and feature flags (`AI_NARRATIVE_ENABLED`, `AI_SCORING_ENABLED`).
+
+If the selected provider is unavailable the UI surfaces a toast with guidance to switch modes.
+
+---
+
+## 🧠 Copilot Chat API
+- The Copilot view now talks directly to `/api/ai/chat`, which resolves the active provider via namespace/header/tenant config and appends the assistant response to the conversation.
+- Errors bubble up using the unified `{ "error": { "code", "message", "details" } }` shape so the UI can nudge users to switch providers.
+- Include `X-Namespace` and (optionally) `X-AI-Provider` to override defaults when integrating programmatically.
+
+```bash
+curl -X POST "http://localhost:8000/api/ai/chat" \
+  -H "Content-Type: application/json" \
+  -d '{"messages":[{"role":"user","content":"Summarise the top risks"}]}'
+```
 
 ---
 
 ## 🔌 API Surface (REST)
 - `GET /health` → lightweight readiness probe
 - `GET /api/findings/sample` → sample dataset used by the UI
+- `GET /api/findings/canonical` → latest canonical findings (falls back to sample)
+- `GET /api/ingest/batches` → available canonical batch metadata
+- `POST /api/ingest/upload` → auto-detect, enrich, and persist canonical JSONL
 - `POST /api/score/compute` → final scores + contributions + effort totals
 - `POST /api/optimize/plan` → remediation waves by risk/effort ratio
 - `POST /api/map/controls` → CVE → control mappings (CIS/NIST/ISO)
 - `POST /api/impact/estimate` → readiness %, risk curve, and compliance boost
 - `POST /api/summary/generate` → one-page HTML summary
 - `POST /api/nl/query` → natural-language intent → tool calls
+- `POST /api/ai/chat` → provider-backed conversational response
 - `POST /api/feedback/submit` → log analyst feedback for adaptive weights
 - `GET /api/feedback/recent` → retrieve the latest analyst responses
 

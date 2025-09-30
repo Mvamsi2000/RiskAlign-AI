@@ -2,50 +2,58 @@ import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import {
+  AIProviderId,
   computeScores,
   estimateImpact,
-  fetchSampleFindings,
+  fetchCanonicalFindings,
   generateSummary,
   mapControls,
   optimizePlan
 } from "../lib/api";
 
-export function useRiskData(maxHoursPerWave: number) {
+export function useRiskData(
+  maxHoursPerWave: number,
+  aiProvider: AIProviderId,
+  batchId?: string
+) {
   const findingsQuery = useQuery({
-    queryKey: ["findings"],
-    queryFn: fetchSampleFindings
+    queryKey: ["canonical-findings", batchId, aiProvider],
+    queryFn: () => fetchCanonicalFindings(batchId)
   });
 
+  const canonical = findingsQuery.data;
+  const findings = canonical?.findings ?? [];
+
   const scoresQuery = useQuery({
-    queryKey: ["scores", findingsQuery.data],
-    enabled: Boolean(findingsQuery.data?.length),
-    queryFn: () => computeScores(findingsQuery.data ?? [])
+    queryKey: ["scores", findings, aiProvider],
+    enabled: Boolean(findings.length),
+    queryFn: () => computeScores(findings)
   });
 
   const wavesQuery = useQuery({
-    queryKey: ["waves", findingsQuery.data, maxHoursPerWave],
-    enabled: Boolean(findingsQuery.data?.length),
-    queryFn: () => optimizePlan(findingsQuery.data ?? [], maxHoursPerWave)
+    queryKey: ["waves", findings, maxHoursPerWave, aiProvider],
+    enabled: Boolean(findings.length),
+    queryFn: () => optimizePlan(findings, maxHoursPerWave)
   });
 
   const controlsQuery = useQuery({
-    queryKey: ["controls", findingsQuery.data],
-    enabled: Boolean(findingsQuery.data?.some((item) => item.cve)),
-    queryFn: () => mapControls(findingsQuery.data ?? [])
+    queryKey: ["controls", findings, aiProvider],
+    enabled: Boolean(findings.some((item) => item.cve)),
+    queryFn: () => mapControls(findings)
   });
 
   const impactQuery = useQuery({
-    queryKey: ["impact", findingsQuery.data, wavesQuery.data],
-    enabled: Boolean(findingsQuery.data?.length && wavesQuery.data?.waves.length),
-    queryFn: () => estimateImpact(findingsQuery.data ?? [], wavesQuery.data?.waves ?? [])
+    queryKey: ["impact", findings, wavesQuery.data, aiProvider],
+    enabled: Boolean(findings.length && wavesQuery.data?.waves.length),
+    queryFn: () => estimateImpact(findings, wavesQuery.data?.waves ?? [])
   });
 
   const summaryQuery = useQuery({
-    queryKey: ["summary", findingsQuery.data, maxHoursPerWave],
-    enabled: Boolean(findingsQuery.data?.length),
+    queryKey: ["summary", findings, maxHoursPerWave, aiProvider],
+    enabled: Boolean(findings.length),
     queryFn: () =>
       generateSummary({
-        findings: findingsQuery.data ?? [],
+        findings,
         max_hours_per_wave: maxHoursPerWave
       })
   });
@@ -60,6 +68,7 @@ export function useRiskData(maxHoursPerWave: number) {
 
   return {
     findingsQuery,
+    canonical,
     scoresQuery,
     wavesQuery,
     controlsQuery,

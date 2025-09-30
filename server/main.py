@@ -1,20 +1,110 @@
 from __future__ import annotations
 
 import json
+import logging
+import os
+from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Mapping, Optional, Tuple
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, File, HTTPException, Request, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
+from .ai.chat import chat_with_provider
+from .ai.provider import AIProviderError
+from .ai.resolve import ProviderResolutionError
+from .core.tenancy import get_namespace, namespace_ai_config_path
 from .feedback import feedback_submit, recent_feedback
 from .impact import impact_estimate
-from .nl_router import nl_query
+from .ingest.pipeline import (
+    IngestError,
+    list_canonical_batches,
+    load_canonical_batch,
+    run_ingest_pipeline,
+)
 from .mapping import map_to_controls
+from .nl_router import nl_query
 from .optimizer import optimize_plan
 from .scoring import score_compute
+from .schemas import export_json_schemas
 from .summary import generate_summary
+
+logger = logging.getLogger(__name__)
+
+app = FastAPI(title="RiskAlign-AI API", version="0.1.0")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+export_json_schemas()
+
+ADMIN_API_KEY = os.getenv("ADMIN_API_KEY", "")
+_SAMPLE_FINDINGS_PATH = Path(__file__).resolve().parent / "data" / "sample_findings.json"
+
+
+def _require_admin(request: Request) -> None:
+    if not ADMIN_API_KEY:
+        return
+    header = request.headers.get("X-Admin-Key")
+    if header != ADMIN_API_KEY:
+        _raise_http_error(
+            status.HTTP_401_UNAUTHORIZED,
+            code="unauthorised",
+            message="Invalid admin key for configuration change",
+        )
+
+
+def _raise_http_error(status_code: int, *, code: str, message: str, details: Optional[Mapping[str, Any]] = None) -> None:
+    raise HTTPException(
+        status_code=status_code,
+        detail={"error": {"code": code, "message": message, "details": details or {}}},
+    )
+
+
+def _load_ai_config(namespace: str) -> Dict[str, Any]:
+    config_path = namespace_ai_config_path(namespace)
+    if not config_path.exists():
+        return {}
+    try:
+        return json.loads(config_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return {}
+
+
+def _load_sample_findings() -> List[Dict[str, Any]]:
+    if not _SAMPLE_FINDINGS_PATH.exists():
+        return []
+    try:
+        return json.loads(_SAMPLE_FINDINGS_PATH.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return []
+
+
+def _default_findings(namespace: str, batch: Optional[str] = None) -> Tuple[List[Dict[str, Any]], Optional[str], bool]:
+    canonical, selected = load_canonical_batch(namespace, batch)
+    if canonical:
+        return canonical, selected, False
+    return _load_sample_findings(), None, True
+
+
+def _count_findings(path: Path) -> int:
+    try:
+        with path.open("r", encoding="utf-8") as handle:
+            return sum(1 for line in handle if line.strip())
+    except OSError:
+        return 0
+
+
+def _infer_created_at(path: Path) -> datetime:
+    try:
+        return datetime.strptime(path.stem, "%Y%m%d-%H%M%S")
+    except ValueError:
+        return datetime.fromtimestamp(path.stat().st_mtime)
 
 
 class AssetContext(BaseModel):
@@ -63,7 +153,7 @@ class ScoreTotals(BaseModel):
 
 
 class ScoreComputeRequest(BaseModel):
-    findings: List[FindingInput]
+    findings: Optional[List[FindingInput]] = None
     config: Optional[Dict[str, Any]] = Field(default=None, description="Optional overrides for scoring weights")
 
 
@@ -95,7 +185,7 @@ class PlanTotals(BaseModel):
 
 
 class OptimizePlanRequest(BaseModel):
-    findings: List[FindingInput]
+    findings: Optional[List[FindingInput]] = None
     max_hours_per_wave: float = Field(default=16.0, gt=0.0)
     config: Optional[Dict[str, Any]] = Field(default=None, description="Optional overrides for scoring weights")
 
@@ -112,7 +202,7 @@ class RiskSavedPoint(BaseModel):
 
 
 class ImpactEstimateRequest(BaseModel):
-    findings: List[FindingInput]
+    findings: Optional[List[FindingInput]] = None
     waves: List[RemediationWave]
 
 
@@ -131,7 +221,7 @@ class ControlMapping(BaseModel):
 
 
 class MapControlsRequest(BaseModel):
-    findings: List[FindingInput]
+    findings: Optional[List[FindingInput]] = None
     framework: str = Field(default="CIS")
 
 
@@ -153,6 +243,24 @@ class SummaryGenerateRequest(BaseModel):
 class SummaryGenerateResponse(BaseModel):
     path: str
     html: str
+
+
+class AIProviderInfo(BaseModel):
+    id: str
+    label: str
+
+
+class AIProvidersResponse(BaseModel):
+    providers: List[AIProviderInfo]
+
+
+class AIConfigRequest(BaseModel):
+    ai_provider: str = Field(pattern="^(local|online)$")
+
+
+class AIConfigResponse(BaseModel):
+    namespace: str
+    ai_provider: str
 
 
 class NLQueryRequest(BaseModel):
@@ -177,15 +285,48 @@ class FeedbackResponse(BaseModel):
     recorded_at: str
 
 
-app = FastAPI(title="RiskAlign-AI API", version="0.1.0")
+class IngestUploadResponse(BaseModel):
+    detected: str
+    adapter_label: str
+    count: int
+    accepted: int
+    rejected: int
+    path: str
+    sample: List[Dict[str, Any]]
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+
+class CanonicalBatchInfo(BaseModel):
+    name: str
+    path: str
+    findings: int
+    created_at: datetime
+
+
+class CanonicalBatchesResponse(BaseModel):
+    namespace: str
+    batches: List[CanonicalBatchInfo]
+
+
+class CanonicalFindingsResponse(BaseModel):
+    namespace: str
+    batch: Optional[str]
+    fallback: bool
+    findings: List[Dict[str, Any]]
+    count: int
+
+
+class ChatMessage(BaseModel):
+    role: str
+    content: str
+
+
+class ChatRequest(BaseModel):
+    messages: List[ChatMessage]
+
+
+class ChatResponse(BaseModel):
+    provider: str
+    messages: List[ChatMessage]
 
 
 @app.get("/health")
@@ -195,72 +336,175 @@ def health_check() -> Dict[str, str]:
 
 @app.get("/api/findings/sample")
 def sample_findings() -> List[Dict[str, Any]]:
-    sample_path = Path(__file__).resolve().parent / "data" / "sample_findings.json"
-    if not sample_path.exists():
-        raise HTTPException(status_code=404, detail="Sample data not found")
-    return json.loads(sample_path.read_text(encoding="utf-8"))
+    data = _load_sample_findings()
+    if not data:
+        _raise_http_error(status.HTTP_404_NOT_FOUND, code="not_found", message="Sample data not found")
+    return data
+
+
+@app.get("/api/ingest/batches", response_model=CanonicalBatchesResponse)
+def list_batches(request: Request) -> CanonicalBatchesResponse:
+    namespace = get_namespace(request)
+    batches = [
+        CanonicalBatchInfo(
+            name=name,
+            path=str(path),
+            findings=_count_findings(path),
+            created_at=_infer_created_at(path),
+        )
+        for name, path in list_canonical_batches(namespace)
+    ]
+    return CanonicalBatchesResponse(namespace=namespace, batches=batches)
+
+
+@app.get("/api/findings/canonical", response_model=CanonicalFindingsResponse)
+def canonical_findings(request: Request, batch: Optional[str] = None) -> CanonicalFindingsResponse:
+    namespace = get_namespace(request)
+    findings, selected, fallback = _default_findings(namespace, batch)
+    return CanonicalFindingsResponse(
+        namespace=namespace,
+        batch=selected,
+        fallback=fallback,
+        findings=findings,
+        count=len(findings),
+    )
+
+
+@app.post("/api/ingest/upload", response_model=IngestUploadResponse)
+async def ingest_upload(request: Request, file: UploadFile = File(...)) -> IngestUploadResponse:
+    namespace = get_namespace(request)
+    content = await file.read()
+    try:
+        stats = run_ingest_pipeline(content, file.filename or "upload", namespace)
+    except IngestError as exc:
+        _raise_http_error(status.HTTP_400_BAD_REQUEST, code="ingest_error", message=str(exc))
+    return IngestUploadResponse(
+        detected=stats.detected,
+        adapter_label=stats.adapter_label,
+        count=stats.count,
+        accepted=stats.accepted,
+        rejected=stats.rejected,
+        path=str(stats.path),
+        sample=stats.sample,
+    )
 
 
 @app.post("/api/score/compute", response_model=ScoreComputeResponse)
-def compute_scores(request: ScoreComputeRequest) -> ScoreComputeResponse:
-    payload = score_compute([finding.model_dump() for finding in request.findings], cfg=request.config)
-    return ScoreComputeResponse.model_validate(payload)
+def compute_scores(payload: ScoreComputeRequest, request: Request) -> ScoreComputeResponse:
+    namespace = get_namespace(request)
+    findings_payload = [finding.model_dump() for finding in payload.findings] if payload.findings else None
+    if not findings_payload:
+        findings_payload, _, _ = _default_findings(namespace)
+    result = score_compute(findings_payload, cfg=payload.config)
+    return ScoreComputeResponse.model_validate(result)
 
 
 @app.post("/api/optimize/plan", response_model=OptimizePlanResponse)
-def plan_remediation(request: OptimizePlanRequest) -> OptimizePlanResponse:
-    findings_payload = [finding.model_dump() for finding in request.findings]
-    scored_payload = score_compute(findings_payload, cfg=request.config)
+def plan_remediation(payload: OptimizePlanRequest, request: Request) -> OptimizePlanResponse:
+    namespace = get_namespace(request)
+    findings_payload = [finding.model_dump() for finding in payload.findings] if payload.findings else None
+    if not findings_payload:
+        findings_payload, _, _ = _default_findings(namespace)
+    scored_payload = score_compute(findings_payload, cfg=payload.config)
     plan_payload = optimize_plan(
         findings_payload,
-        max_hours_per_wave=request.max_hours_per_wave,
+        max_hours_per_wave=payload.max_hours_per_wave,
         scored=scored_payload["findings"],
-        config=request.config,
+        config=payload.config,
     )
     return OptimizePlanResponse.model_validate(plan_payload)
 
 
 @app.post("/api/impact/estimate", response_model=ImpactEstimateResponse)
-def estimate_impact(request: ImpactEstimateRequest) -> ImpactEstimateResponse:
-    findings_payload = [finding.model_dump() for finding in request.findings]
-    waves_payload = [wave.model_dump() for wave in request.waves]
-    payload = impact_estimate(waves_payload, findings_payload)
-    return ImpactEstimateResponse.model_validate(payload)
+def estimate_impact(payload: ImpactEstimateRequest, request: Request) -> ImpactEstimateResponse:
+    namespace = get_namespace(request)
+    findings_payload = [finding.model_dump() for finding in payload.findings] if payload.findings else None
+    if not findings_payload:
+        findings_payload, _, _ = _default_findings(namespace)
+    waves_payload = [wave.model_dump() for wave in payload.waves]
+    result = impact_estimate(waves_payload, findings_payload)
+    return ImpactEstimateResponse.model_validate(result)
 
 
 @app.post("/api/map/controls", response_model=MapControlsResponse)
-def map_controls_endpoint(request: MapControlsRequest) -> MapControlsResponse:
-    findings_payload = [finding.model_dump() for finding in request.findings]
-    payload = map_to_controls(findings_payload, framework=request.framework)
-    return MapControlsResponse.model_validate(payload)
+def map_controls_endpoint(payload: MapControlsRequest, request: Request) -> MapControlsResponse:
+    namespace = get_namespace(request)
+    findings_payload = [finding.model_dump() for finding in payload.findings] if payload.findings else None
+    if not findings_payload:
+        findings_payload, _, _ = _default_findings(namespace)
+    result = map_to_controls(findings_payload, framework=payload.framework)
+    return MapControlsResponse.model_validate(result)
 
 
 @app.post("/api/summary/generate", response_model=SummaryGenerateResponse)
-def generate_summary_endpoint(request: SummaryGenerateRequest) -> SummaryGenerateResponse:
-    findings_payload = None
-    if request.findings is not None:
-        findings_payload = [finding.model_dump() for finding in request.findings]
-    payload = generate_summary(
+def generate_summary_endpoint(payload: SummaryGenerateRequest, request: Request) -> SummaryGenerateResponse:
+    namespace = get_namespace(request)
+    findings_payload = [finding.model_dump() for finding in payload.findings] if payload.findings else None
+    tenant_config = _load_ai_config(namespace)
+    summary_payload = generate_summary(
         findings=findings_payload,
-        scope=request.scope or "environment",
-        framework=request.framework,
-        max_hours_per_wave=request.max_hours_per_wave,
+        scope=payload.scope or "environment",
+        framework=payload.framework,
+        max_hours_per_wave=payload.max_hours_per_wave,
+        request=request,
+        tenant_config=tenant_config,
+        namespace=namespace,
     )
-    return SummaryGenerateResponse.model_validate(payload)
+    return SummaryGenerateResponse.model_validate(summary_payload)
+
+
+@app.post("/api/ai/chat", response_model=ChatResponse)
+def ai_chat_endpoint(payload: ChatRequest, request: Request) -> ChatResponse:
+    namespace = get_namespace(request)
+    tenant_config = _load_ai_config(namespace)
+    try:
+        result = chat_with_provider(
+            request,
+            [message.model_dump() for message in payload.messages],
+            tenant_config=tenant_config,
+            namespace=namespace,
+        )
+    except (ProviderResolutionError, ValueError) as exc:
+        _raise_http_error(status.HTTP_400_BAD_REQUEST, code="chat_error", message=str(exc))
+    except AIProviderError as exc:
+        _raise_http_error(status.HTTP_503_SERVICE_UNAVAILABLE, code="chat_unavailable", message=str(exc))
+
+    return ChatResponse.model_validate(result)
 
 
 @app.post("/api/nl/query", response_model=NLQueryResponse)
-def nl_query_endpoint(request: NLQueryRequest) -> NLQueryResponse:
-    payload = nl_query(request.model_dump())
-    return NLQueryResponse.model_validate(payload)
+def nl_query_endpoint(payload: NLQueryRequest) -> NLQueryResponse:
+    result = nl_query(payload.model_dump())
+    return NLQueryResponse.model_validate(result)
 
 
 @app.post("/api/feedback/submit", response_model=FeedbackResponse)
-def feedback_submit_endpoint(request: FeedbackRequest) -> FeedbackResponse:
-    payload = feedback_submit(request.model_dump())
-    return FeedbackResponse.model_validate(payload)
+def feedback_submit_endpoint(payload: FeedbackRequest) -> FeedbackResponse:
+    result = feedback_submit(payload.model_dump())
+    return FeedbackResponse.model_validate(result)
 
 
 @app.get("/api/feedback/recent")
 def recent_feedback_endpoint(limit: int = 10) -> List[Dict[str, Any]]:
     return recent_feedback(limit)
+
+
+@app.get("/api/ai/providers", response_model=AIProvidersResponse)
+def list_ai_providers() -> AIProvidersResponse:
+    providers = [
+        AIProviderInfo(id="local", label="Local (Ollama)"),
+        AIProviderInfo(id="online", label="Online (OpenAI)"),
+    ]
+    return AIProvidersResponse(providers=providers)
+
+
+@app.post("/api/ai/config", response_model=AIConfigResponse)
+def update_ai_config(request: Request, payload: AIConfigRequest) -> AIConfigResponse:
+    _require_admin(request)
+    namespace = get_namespace(request)
+    config_path = namespace_ai_config_path(namespace)
+    config_path.write_text(
+        json.dumps({"ai_provider": payload.ai_provider}, indent=2, sort_keys=True),
+        encoding="utf-8",
+    )
+    return AIConfigResponse(namespace=namespace, ai_provider=payload.ai_provider)

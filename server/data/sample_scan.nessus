@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<NessusClientData_v2>
+  <Report name="Internal Scan">
+    <ReportHost name="intranet-gateway">
+      <HostIP>10.0.0.5</HostIP>
+      <ReportItem port="443" svc_name="https" protocol="tcp" pluginID="19506" pluginName="SSL Medium Strength Cipher Suites Supported" severity="2" cve="CVE-2023-12345" cvssBaseScore="8.9">
+        <description>Medium strength ciphers are still enabled.</description>
+      </ReportItem>
+      <ReportItem port="22" svc_name="ssh" protocol="tcp" pluginID="33850" pluginName="SSH Server CBC Mode Ciphers Enabled" severity="1" cvssBaseScore="5.8">
+        <description>SSH CBC mode ciphers were detected.</description>
+      </ReportItem>
+    </ReportHost>
+  </Report>
+</NessusClientData_v2>

@@ -136,3 +136,29 @@ class SummaryGenerateRequest(BaseModel):
 
 class SummaryGenerateResponse(BaseModel):
     html: str
+
+
+__all__ = [
+    "AssetContext",
+    "Finding",
+    "Contribution",
+    "ScoredFinding",
+    "ScoreSummary",
+    "ScoreComputeRequest",
+    "ScoreComputeResponse",
+    "WaveItem",
+    "RemediationWave",
+    "OptimizePlanRequest",
+    "OptimizePlanResponse",
+    "ControlMapping",
+    "MapControlsRequest",
+    "MapControlsResponse",
+    "ImpactEstimateRequest",
+    "ImpactEstimateResponse",
+    "NLQueryRequest",
+    "NLQueryResponse",
+    "FeedbackRequest",
+    "FeedbackResponse",
+    "SummaryGenerateRequest",
+    "SummaryGenerateResponse",
+]

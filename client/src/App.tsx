@@ -1,34 +1,108 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2, Sparkles, Table2, Target, Workflow } from "lucide-react";
 
 import { Card } from "./components/Card";
 import { useRiskData } from "./hooks/useRiskData";
-import { submitFeedback } from "./lib/api";
+import {
+  AIProviderId,
+  listAIProviders,
+  listCanonicalBatches,
+  onAIProviderError,
+  submitFeedback
+} from "./lib/api";
 import { ComplianceView } from "./views/Compliance";
 import { CopilotView } from "./views/Copilot";
+import { ImportView } from "./views/Import";
 import { NarrativesView } from "./views/Narratives";
 import { PlanView } from "./views/Plan";
 
-const TABS = ["Plan", "Compliance", "Narratives", "Summary"] as const;
+const TABS = ["Plan", "Compliance", "Narratives", "Summary", "Import"] as const;
 
 type Tab = (typeof TABS)[number];
+
+const DEFAULT_AI_PROVIDERS: { id: AIProviderId; label: string }[] = [
+  { id: "local", label: "Local (Ollama)" },
+  { id: "online", label: "Online (OpenAI)" }
+];
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<Tab>("Plan");
   const [maxHoursPerWave, setMaxHoursPerWave] = useState(16);
   const [feedbackNotice, setFeedbackNotice] = useState<string | null>(null);
+  const [aiNotice, setAINotice] = useState<string | null>(null);
+  const [selectedBatch, setSelectedBatch] = useState<string | undefined>(undefined);
+  const queryClient = useQueryClient();
+  const [aiProvider, setAIProvider] = useState<AIProviderId>(() => {
+    if (typeof window === "undefined") {
+      return "local";
+    }
+    const stored = window.localStorage.getItem("aiProvider");
+    return stored === "online" ? "online" : "local";
+  });
+
+  const aiProvidersQuery = useQuery({
+    queryKey: ["ai-providers"],
+    queryFn: listAIProviders,
+    staleTime: 60_000
+  });
+
+  const canonicalBatchesQuery = useQuery({
+    queryKey: ["canonical-batches"],
+    queryFn: listCanonicalBatches,
+    refetchInterval: 60_000
+  });
+
+  useEffect(() => {
+    const options = canonicalBatchesQuery.data ?? [];
+    if (!options?.length) {
+      setSelectedBatch(undefined);
+      return;
+    }
+    if (selectedBatch && !options.some((option) => option.name === selectedBatch)) {
+      setSelectedBatch(undefined);
+    }
+  }, [canonicalBatchesQuery.data, selectedBatch]);
+
+  useEffect(() => {
+    const unsubscribe = onAIProviderError((message) => {
+      setAINotice(`AI provider issue: ${message}. Try switching AI mode.`);
+    });
+    return unsubscribe;
+  }, []);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("aiProvider", aiProvider);
+    }
+    queryClient.invalidateQueries();
+    setAINotice(null);
+  }, [aiProvider, queryClient]);
+
+  useEffect(() => {
+    const options = aiProvidersQuery.data ?? DEFAULT_AI_PROVIDERS;
+    if (!options.some((option) => option.id === aiProvider)) {
+      setAIProvider(options[0]?.id ?? "local");
+    }
+  }, [aiProvidersQuery.data, aiProvider]);
 
   const {
     findingsQuery,
+    canonical,
     scoresQuery,
     wavesQuery,
     controlsQuery,
     impactQuery,
     summaryQuery,
     priorityCards
-  } = useRiskData(maxHoursPerWave);
+  } = useRiskData(maxHoursPerWave, aiProvider, selectedBatch);
+
+  const providerOptions = aiProvidersQuery.data ?? DEFAULT_AI_PROVIDERS;
+  const activeProviderLabel =
+    providerOptions.find((option) => option.id === aiProvider)?.label ?? "Local (Ollama)";
 
   const isLoading =
+    canonicalBatchesQuery.isLoading ||
     findingsQuery.isLoading ||
     scoresQuery.isLoading ||
     wavesQuery.isLoading ||
@@ -37,6 +111,7 @@ export default function App() {
     summaryQuery.isLoading;
 
   const hasError =
+    canonicalBatchesQuery.isError ||
     findingsQuery.isError ||
     scoresQuery.isError ||
     wavesQuery.isError ||
@@ -44,7 +119,7 @@ export default function App() {
     impactQuery.isError ||
     summaryQuery.isError;
 
-  const totalFindings = findingsQuery.data?.length ?? 0;
+  const totalFindings = canonical?.count ?? 0;
   const highPriorityTotal = priorityCards
     .filter((card) => card.priority === "Critical" || card.priority === "High")
     .reduce((acc, item) => acc + item.count, 0);
@@ -61,6 +136,10 @@ export default function App() {
 
   const readinessLabel = impactQuery.data ? `${impactQuery.data.readiness_percent.toFixed(1)}% ready` : "0% ready";
   const complianceLabel = impactQuery.data ? `${impactQuery.data.compliance_boost.toFixed(1)}%` : "0.0%";
+
+  const datasetOptions = canonicalBatchesQuery.data ?? [];
+  const activeDataset = selectedBatch ?? canonical?.batch ?? (datasetOptions[0]?.name ?? "sample");
+  const datasetFallback = canonical?.fallback ?? false;
 
   const handleFeedback = async (findingId: string, action: "agree" | "disagree") => {
     try {
@@ -82,29 +161,95 @@ export default function App() {
               Explainable prioritisation, compliance coverage, and executive summaries in one workspace.
             </p>
           </div>
-          <div className="hidden text-right md:block">
-            <p className="text-sm font-medium text-slate-500">Wave capacity (hrs)</p>
-            <input
-              type="number"
-              min={4}
-              max={40}
-              value={maxHoursPerWave}
-              onChange={(event) => {
-                const next = Number(event.target.value);
-                setMaxHoursPerWave(Number.isNaN(next) ? 16 : Math.min(Math.max(next, 4), 40));
-              }}
-              className="mt-1 w-28 rounded-lg border border-slate-300 px-3 py-2 text-right text-sm font-medium text-slate-700 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/30"
-            />
-            <p className="mt-1 text-xs text-slate-400">Used for plan optimisation.</p>
+          <div className="hidden flex-col items-end gap-4 text-right md:flex">
+            <div className="w-44">
+              <label className="text-sm font-medium text-slate-500" htmlFor="ai-mode-select">
+                AI mode
+              </label>
+              <select
+                id="ai-mode-select"
+                aria-label="Select AI provider"
+                value={aiProvider}
+                disabled={aiProvidersQuery.isLoading}
+                onChange={(event) => setAIProvider(event.target.value as AIProviderId)}
+                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/30"
+              >
+                {providerOptions.map((option) => (
+                  <option key={option.id} value={option.id}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1 text-xs text-slate-400">Switch between local Ollama or online OpenAI.</p>
+            </div>
+            <div className="w-44">
+              <label className="text-sm font-medium text-slate-500" htmlFor="dataset-select">
+                Dataset
+              </label>
+              <select
+                id="dataset-select"
+                aria-label="Select canonical dataset"
+                value={selectedBatch ?? ""}
+                disabled={canonicalBatchesQuery.isLoading || !datasetOptions.length}
+                onChange={(event) => {
+                  const value = event.target.value;
+                  setSelectedBatch(value === "" ? undefined : value);
+                }}
+                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/30"
+              >
+                <option value="">Latest ({datasetOptions[0]?.name ?? "sample"})</option>
+                {datasetOptions.slice(1).map((option) => (
+                  <option key={option.name} value={option.name}>
+                    {option.name} ({option.findings} findings)
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1 text-xs text-slate-400">
+                {datasetFallback ? "Using bundled sample data." : "Choose a canonical batch to analyse."}
+              </p>
+            </div>
+            <div className="w-44">
+              <label className="text-sm font-medium text-slate-500" htmlFor="wave-capacity">
+                Wave capacity (hrs)
+              </label>
+              <input
+                id="wave-capacity"
+                type="number"
+                min={4}
+                max={40}
+                value={maxHoursPerWave}
+                onChange={(event) => {
+                  const next = Number(event.target.value);
+                  setMaxHoursPerWave(Number.isNaN(next) ? 16 : Math.min(Math.max(next, 4), 40));
+                }}
+                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-right text-sm font-medium text-slate-700 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/30"
+              />
+              <p className="mt-1 text-xs text-slate-400">Used for plan optimisation.</p>
+            </div>
           </div>
         </div>
       </header>
 
       <main className="mx-auto max-w-6xl space-y-6 px-6 py-8">
+        {aiNotice ? (
+          <div className="flex items-start justify-between rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-700">
+            <span>{aiNotice}</span>
+            <button
+              type="button"
+              onClick={() => setAINotice(null)}
+              className="ml-4 rounded bg-amber-200/40 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-amber-700"
+            >
+              Dismiss
+            </button>
+          </div>
+        ) : null}
+
         <section className="grid gap-4 md:grid-cols-4">
           <Card title={<span className="flex items-center gap-2"><Sparkles className="h-4 w-4 text-brand" />Findings scored</span>}>
             <p className="text-3xl font-semibold text-slate-900">{totalFindings}</p>
-            <p className="text-xs text-slate-500">Auto ingested sample dataset.</p>
+            <p className="text-xs text-slate-500">
+              {datasetFallback ? "Fallback sample dataset in use." : `Batch: ${activeDataset}`}
+            </p>
           </Card>
           <Card title={<span className="flex items-center gap-2"><Target className="h-4 w-4 text-brand" />High priority</span>}>
             <p className="text-3xl font-semibold text-slate-900">{highPriorityTotal}</p>
@@ -164,10 +309,15 @@ export default function App() {
             {activeTab === "Summary" ? (
               <SummaryView html={summaryQuery.data?.html ?? ""} path={summaryQuery.data?.path ?? ""} />
             ) : null}
+            {activeTab === "Import" ? <ImportView /> : null}
           </section>
         )}
 
-        <CopilotView />
+        <CopilotView
+          providerId={aiProvider}
+          providerLabel={activeProviderLabel}
+          namespace={canonical?.namespace}
+        />
       </main>
     </div>
   );

@@ -1,0 +1,249 @@
+{
+  "$defs": {
+    "CanonicalAsset": {
+      "description": "Minimal context about the affected asset.",
+      "properties": {
+        "ip_address": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Ip Address"
+        },
+        "kind": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Kind"
+        },
+        "location": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Location"
+        },
+        "name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Name"
+        }
+      },
+      "title": "CanonicalAsset",
+      "type": "object"
+    },
+    "CanonicalSignals": {
+      "description": "Optional enrichment signals attached to the finding.",
+      "properties": {
+        "epss": {
+          "anyOf": [
+            {
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Epss"
+        },
+        "kev": {
+          "default": false,
+          "title": "Kev",
+          "type": "boolean"
+        }
+      },
+      "title": "CanonicalSignals",
+      "type": "object"
+    }
+  },
+  "description": "Normalised vulnerability finding used across the platform.",
+  "properties": {
+    "asset": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/CanonicalAsset"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "cve": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Associated CVE identifier if available",
+      "title": "Cve"
+    },
+    "cvss": {
+      "anyOf": [
+        {
+          "maximum": 10.0,
+          "minimum": 0.0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Cvss"
+    },
+    "description": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Detailed description from the source feed",
+      "title": "Description"
+    },
+    "effective_severity": {
+      "description": "Return the severity, deriving it from CVSS if missing.",
+      "readOnly": true,
+      "title": "Effective Severity",
+      "type": "string"
+    },
+    "effort_hours": {
+      "anyOf": [
+        {
+          "minimum": 0.0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Effort Hours"
+    },
+    "epss": {
+      "anyOf": [
+        {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "type": "number"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Epss"
+    },
+    "id": {
+      "description": "Stable identifier for the finding within the batch",
+      "title": "Id",
+      "type": "string"
+    },
+    "kev": {
+      "default": false,
+      "description": "True when listed in CISA KEV catalogue",
+      "title": "Kev",
+      "type": "boolean"
+    },
+    "observed_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Timestamp when the issue was observed",
+      "title": "Observed At"
+    },
+    "raw": {
+      "anyOf": [
+        {},
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Raw source payload for traceability",
+      "title": "Raw"
+    },
+    "severity": {
+      "default": "unknown",
+      "description": "Normalised qualitative severity label",
+      "title": "Severity",
+      "type": "string"
+    },
+    "signals": {
+      "$ref": "#/$defs/CanonicalSignals"
+    },
+    "source": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Adapter that produced the finding",
+      "title": "Source"
+    },
+    "tags": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Tags",
+      "type": "array"
+    },
+    "title": {
+      "description": "Short human readable title",
+      "title": "Title",
+      "type": "string"
+    }
+  },
+  "required": [
+    "id",
+    "title",
+    "effective_severity"
+  ],
+  "title": "CanonicalFinding",
+  "type": "object"
+}
