@@ -8,14 +8,14 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-ALLOWED_ORIGINS: Iterable[str] = ("http://127.0.0.1:5173",)
+ALLOWED_ORIGINS: Iterable[str] = ("http://127.0.0.1:5173", "http://localhost:5173")
 
 
 def create_app() -> FastAPI:
     """Create and configure the FastAPI application instance."""
     app = FastAPI(
         title="RiskAlign AI API",
-        version="0.1.0",
+        version="1.0.0",
         docs_url="/docs",
         openapi_url="/openapi.json",
     )
@@ -33,9 +33,11 @@ def create_app() -> FastAPI:
     output_dir.mkdir(parents=True, exist_ok=True)
     app.mount("/reports", StaticFiles(directory=output_dir), name="reports")
 
-    from .routers import health, impact, ingest, mapping, nlq, optimize, scoring, summary
+    from .routers import ai, feedback, findings, health, impact, ingest, mapping, nlq, optimize, scoring, summary
 
     app.include_router(health.router)
+    app.include_router(findings.router)
+    app.include_router(ai.router)
     app.include_router(ingest.router)
     app.include_router(scoring.router)
     app.include_router(optimize.router)
@@ -43,6 +45,7 @@ def create_app() -> FastAPI:
     app.include_router(mapping.router)
     app.include_router(summary.router)
     app.include_router(nlq.router)
+    app.include_router(feedback.router)
 
     return app
 

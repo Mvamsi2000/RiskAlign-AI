@@ -12,15 +12,16 @@ export interface AIProvidersResponse {
 }
 
 export interface AssetContext {
-  name: string;
-  criticality: string;
-  exposure: string;
+  name?: string;
+  criticality?: string;
+  exposure?: string;
   data_sensitivity?: string;
 }
 
 export interface Finding {
   id?: string;
   title?: string;
+  description?: string;
   cve?: string;
   cvss: number;
   epss?: number;
@@ -28,6 +29,13 @@ export interface Finding {
   kev?: boolean;
   asset?: AssetContext;
   effort_hours?: number;
+  tags?: string[];
+}
+
+export interface IngestResponse {
+  count: number;
+  sample: Finding[];
+  envelope: Record<string, unknown>;
 }
 
 export interface ScoreComponents {
@@ -38,12 +46,11 @@ export interface ScoreComponents {
   context: number;
 }
 
-export interface ScoreFinding {
-  id?: string;
-  title?: string;
+export interface ScoreFinding extends Finding {
   score: number;
   priority: string;
   effort_hours: number;
+  risk_saved: number;
   components: ScoreComponents;
   context_multiplier: number;
 }
@@ -86,13 +93,15 @@ export interface PlanTotals {
 export interface OptimizePlanResponse {
   waves: RemediationWave[];
   totals: PlanTotals;
+  unassigned: string[];
 }
 
 export interface ControlMapping {
-  cve: string;
   control: string;
+  title: string;
   description: string;
   finding_id?: string;
+  cve?: string;
 }
 
 export interface MapControlsResponse {
@@ -112,6 +121,7 @@ export interface RiskCurvePoint {
 export interface ImpactEstimateResponse {
   readiness_percent: number;
   compliance_boost: number;
+  residual_risk: number;
   risk_saved_curve: RiskCurvePoint[];
   controls_covered: string[];
 }
@@ -123,6 +133,8 @@ export interface NLQueryResponse {
     matched_keywords: string[];
     confidence: number;
     endpoint: string | null;
+    provider?: string;
+    provider_error?: string;
   };
 }
 
@@ -158,10 +170,7 @@ export function onAIProviderError(listener: ProviderErrorListener): () => void {
   };
 }
 
-export function withAIProvider(
-  init: RequestInit = {},
-  provider?: AIProviderId
-): RequestInit {
+export function withAIProvider(init: RequestInit = {}, provider?: AIProviderId): RequestInit {
   const stored = provider ?? getStoredProvider();
   if (!stored) {
     return init;
@@ -230,6 +239,19 @@ export async function fetchSampleFindings(): Promise<Finding[]> {
   return data;
 }
 
+export async function uploadArtifact(file: File): Promise<IngestResponse> {
+  const form = new FormData();
+  form.append("file", file);
+  const response = await client.post<IngestResponse>("/ingest/upload", form, {
+    ...configWithAIProvider(),
+    headers: {
+      ...(configWithAIProvider().headers ?? {}),
+      "Content-Type": "multipart/form-data"
+    }
+  });
+  return response.data;
+}
+
 export async function computeScores(findings: Finding[]): Promise<ScoreComputeResponse> {
   const { data } = await client.post<ScoreComputeResponse>(
     "/score/compute",
@@ -240,7 +262,7 @@ export async function computeScores(findings: Finding[]): Promise<ScoreComputeRe
 }
 
 export async function optimizePlan(
-  findings: Finding[],
+  findings: ScoreFinding[],
   maxHoursPerWave: number
 ): Promise<OptimizePlanResponse> {
   const { data } = await client.post<OptimizePlanResponse>(
@@ -270,7 +292,7 @@ export async function mapControls(
 }
 
 export async function estimateImpact(
-  findings: Finding[],
+  findings: ScoreFinding[],
   waves: RemediationWave[]
 ): Promise<ImpactEstimateResponse> {
   const { data } = await client.post<ImpactEstimateResponse>(
@@ -294,10 +316,11 @@ export async function queryIntent(query: string): Promise<NLQueryResponse> {
 }
 
 export async function generateSummary(options: {
-  findings?: Finding[];
-  scope?: string;
-  framework?: string;
-  max_hours_per_wave?: number;
+  findings: ScoreFinding[];
+  waves: RemediationWave[];
+  impact?: ImpactEstimateResponse;
+  mapping?: MapControlsResponse;
+  notes?: string;
 }): Promise<SummaryGenerateResponse> {
   const { data } = await client.post<SummaryGenerateResponse>(
     "/summary/generate",

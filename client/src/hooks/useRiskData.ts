@@ -3,6 +3,8 @@ import { useQuery } from "@tanstack/react-query";
 
 import {
   AIProviderId,
+  ImpactEstimateResponse,
+  MapControlsResponse,
   computeScores,
   estimateImpact,
   fetchSampleFindings,
@@ -24,30 +26,32 @@ export function useRiskData(maxHoursPerWave: number, aiProvider: AIProviderId) {
   });
 
   const wavesQuery = useQuery({
-    queryKey: ["waves", findingsQuery.data, maxHoursPerWave, aiProvider],
-    enabled: Boolean(findingsQuery.data?.length),
-    queryFn: () => optimizePlan(findingsQuery.data ?? [], maxHoursPerWave)
+    queryKey: ["waves", scoresQuery.data, maxHoursPerWave, aiProvider],
+    enabled: Boolean(scoresQuery.data?.findings.length),
+    queryFn: () => optimizePlan(scoresQuery.data?.findings ?? [], maxHoursPerWave)
   });
 
   const controlsQuery = useQuery({
     queryKey: ["controls", findingsQuery.data, aiProvider],
-    enabled: Boolean(findingsQuery.data?.some((item) => item.cve)),
+    enabled: Boolean(findingsQuery.data?.length),
     queryFn: () => mapControls(findingsQuery.data ?? [])
   });
 
   const impactQuery = useQuery({
-    queryKey: ["impact", findingsQuery.data, wavesQuery.data, aiProvider],
-    enabled: Boolean(findingsQuery.data?.length && wavesQuery.data?.waves.length),
-    queryFn: () => estimateImpact(findingsQuery.data ?? [], wavesQuery.data?.waves ?? [])
+    queryKey: ["impact", scoresQuery.data, wavesQuery.data, aiProvider],
+    enabled: Boolean(scoresQuery.data?.findings.length && wavesQuery.data?.waves.length),
+    queryFn: () => estimateImpact(scoresQuery.data?.findings ?? [], wavesQuery.data?.waves ?? [])
   });
 
   const summaryQuery = useQuery({
-    queryKey: ["summary", findingsQuery.data, maxHoursPerWave, aiProvider],
-    enabled: Boolean(findingsQuery.data?.length),
+    queryKey: ["summary", scoresQuery.data, wavesQuery.data, impactQuery.data, controlsQuery.data, aiProvider],
+    enabled: Boolean(scoresQuery.data?.findings.length && wavesQuery.data?.waves.length && impactQuery.data),
     queryFn: () =>
       generateSummary({
-        findings: findingsQuery.data ?? [],
-        max_hours_per_wave: maxHoursPerWave
+        findings: scoresQuery.data?.findings ?? [],
+        waves: wavesQuery.data?.waves ?? [],
+        impact: impactQuery.data as ImpactEstimateResponse,
+        mapping: controlsQuery.data as MapControlsResponse
       })
   });
 

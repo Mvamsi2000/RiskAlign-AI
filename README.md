@@ -101,14 +101,14 @@ npm run dev
 ```
 Open `http://localhost:5173`
 
-> **Tip:** The workspace auto-loads `server/data/sample_findings.json`. Adjust the wave capacity in the header to see plan/compliance/narrative views update instantly.
+> **Tip:** The workspace auto-loads `server/data/samples/sample_findings.json`. Adjust the wave capacity in the header to see plan/compliance/narrative views update instantly.
 
 ---
 
 ## ⚙️ Configuration (MVP defaults)
 - `server/config/scoring.json` — weights & rule DSL (add/mult/min_priority)
 - `server/config/controls_cis.json` — CVE → CIS mappings (extendable to NIST/ISO)
-- `server/data/sample_findings.json` — demo dataset (5–10 findings)
+- `server/data/samples/sample_findings.json` — demo dataset (5–10 findings)
 
 **Priority Buckets (default):**
 - 9.0–10.0 = Critical, 7.0–8.99 = High, 4.0–6.99 = Medium, else Low

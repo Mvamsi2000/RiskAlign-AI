@@ -1,8 +1,46 @@
 {
   "CIS": {
-    "1": {
+    "CIS-01": {
       "name": "Inventory and Control of Enterprise Assets",
-      "description": "Actively manage inventory of all enterprise assets."
+      "description": "Maintain an accurate inventory of assets and ensure authorized use only.",
+      "keywords": ["inventory", "asset"],
+      "cves": []
+    },
+    "CIS-04": {
+      "name": "Secure Configuration of Enterprise Assets and Software",
+      "description": "Establish and maintain secure configurations, remediating vulnerabilities promptly.",
+      "keywords": ["patch", "configuration", "apache", "kubernetes"],
+      "cves": ["CVE-2023-25690", "CVE-2020-0796"]
+    },
+    "CIS-07": {
+      "name": "Continuous Vulnerability Management",
+      "description": "Continuously acquire and remediate vulnerabilities, prioritizing based on risk.",
+      "keywords": ["vulnerability", "scan", "tls"],
+      "cves": ["CVE-2023-25690", "CVE-2020-0796"]
+    },
+    "CIS-11": {
+      "name": "Secure Configuration for Network Infrastructure",
+      "description": "Establish secure configurations for network devices such as firewalls and load balancers.",
+      "keywords": ["tls", "network", "cipher"],
+      "cves": []
+    },
+    "CIS-13": {
+      "name": "Data Protection",
+      "description": "Develop processes to identify, classify, securely handle, retain, and dispose of data.",
+      "keywords": ["s3", "data", "bucket", "invoice"],
+      "cves": []
+    },
+    "CIS-16": {
+      "name": "Application Software Security",
+      "description": "Manage the security life cycle of software deployed in production.",
+      "keywords": ["application", "api", "server"],
+      "cves": ["CVE-2023-25690"]
+    },
+    "CIS-18": {
+      "name": "Penetration Testing",
+      "description": "Establish a program to identify vulnerabilities and exposures through regular testing.",
+      "keywords": ["penetration", "testing", "ssh", "brute"],
+      "cves": []
     }
   }
 }

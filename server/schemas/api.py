@@ -1,32 +1,11 @@
-"""Shared API-facing schemas."""
+"""Shared API-facing schemas for the RiskAlign-AI platform."""
 from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from .finding import CanonicalFinding
-
-
-class ScoringWeights(BaseModel):
-    """Relative weights applied to individual scoring dimensions."""
-
-    model_config = ConfigDict(extra="forbid")
-
-    cvss: float = Field(0.6, ge=0, description="Weight applied to CVSS scores")
-    epss: float = Field(0.3, ge=0, description="Weight applied to EPSS probabilities")
-    kev: float = Field(0.1, ge=0, description="Weight applied when a finding is on the KEV list")
-    context: float = Field(0.0, ge=0, description="Custom context multiplier for future extensions")
-
-
-class ScoringConfig(BaseModel):
-    """Configuration payload accepted by the scoring engine."""
-
-    model_config = ConfigDict(extra="ignore")
-
-    max_score: float = Field(10.0, gt=0, description="Maximum risk score that may be returned")
-    risk_tolerance: float = Field(7.5, ge=0, le=10, description="Threshold representing acceptable risk")
-    weights: ScoringWeights = Field(default_factory=ScoringWeights, description="Weights for scoring dimensions")
+from .finding import AssetContext, CanonicalFinding
 
 
 class IngestResponse(BaseModel):
@@ -35,7 +14,50 @@ class IngestResponse(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
     count: int = Field(..., ge=0, description="Total number of findings detected in the artifact")
-    sample: List[CanonicalFinding] = Field(default_factory=list, description="Sample findings extracted from the artifact")
+    sample: List[CanonicalFinding] = Field(
+        default_factory=list, description="Sample findings extracted from the artifact"
+    )
+    envelope: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="Serialized MCP envelope representing the normalized payload",
+    )
+
+
+class ScoringWeights(BaseModel):
+    """Relative weights applied to individual scoring dimensions."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    cvss: float = Field(0.6, ge=0, description="Weight applied to CVSS scores")
+    epss: float = Field(0.25, ge=0, description="Weight applied to EPSS probabilities")
+    kev: float = Field(0.1, ge=0, description="Weight applied when a finding is on the KEV list")
+    context: float = Field(0.05, ge=0, description="Weight applied to contextual multipliers")
+
+
+class ScoringConfig(BaseModel):
+    """Configuration payload accepted by the scoring engine."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    max_score: float = Field(10.0, gt=0, description="Maximum risk score that may be returned")
+    risk_tolerance: float = Field(
+        7.5, ge=0, le=10, description="Threshold representing acceptable residual risk"
+    )
+    weights: ScoringWeights = Field(
+        default_factory=ScoringWeights, description="Weights for scoring dimensions"
+    )
+
+
+class ScoreComponents(BaseModel):
+    """Breakdown of component contributions that form the final score."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    cvss: float = Field(0.0, ge=0, description="Contribution from the CVSS base score")
+    epss: float = Field(0.0, ge=0, description="Contribution from the EPSS probability")
+    mvi: float = Field(0.0, ge=0, description="Contribution from vendor maturity index")
+    kev: float = Field(0.0, ge=0, description="Contribution from KEV designation")
+    context: float = Field(0.0, ge=0, description="Contribution from contextual multipliers")
 
 
 class ScoreFinding(CanonicalFinding):
@@ -44,22 +66,29 @@ class ScoreFinding(CanonicalFinding):
     model_config = ConfigDict(extra="ignore", populate_by_name=True)
 
     score: float = Field(0.0, ge=0, le=10, description="Calculated risk score")
-    bucket: str = Field("low", description="Risk bucket label")
+    priority: str = Field("Low", description="Priority bucket label")
     effort_hours: float = Field(0.0, ge=0, description="Estimated effort in hours")
+    risk_saved: float = Field(0.0, ge=0, description="Estimated risk reduction if remediated")
+    components: ScoreComponents = Field(
+        default_factory=ScoreComponents, description="Score component contributions"
+    )
+    context_multiplier: float = Field(
+        1.0, ge=0, description="Multiplier applied based on asset context and tags"
+    )
 
 
-class ScoreSummary(BaseModel):
+class ScoreTotals(BaseModel):
     """Aggregated scoring summary."""
 
     model_config = ConfigDict(extra="ignore")
 
-    total_findings: int = Field(0, ge=0, description="Total findings considered")
+    count: int = Field(0, ge=0, description="Total findings considered")
+    total_score: float = Field(0.0, ge=0, description="Sum of all scores")
     average_score: float = Field(0.0, ge=0, le=10, description="Average risk score")
-    critical: int = Field(0, ge=0, description="Number of critical findings")
-    high: int = Field(0, ge=0, description="Number of high findings")
-    medium: int = Field(0, ge=0, description="Number of medium findings")
-    low: int = Field(0, ge=0, description="Number of low findings")
     total_effort_hours: float = Field(0.0, ge=0, description="Total estimated effort in hours")
+    by_priority: Dict[str, int] = Field(
+        default_factory=dict, description="Count of findings grouped by priority"
+    )
 
 
 class ScoreRequest(BaseModel):
@@ -71,44 +100,68 @@ class ScoreRequest(BaseModel):
     config: Optional[ScoringConfig] = Field(None, description="Overrides for scoring configuration")
 
 
-class ScoreResponse(BaseModel):
+class ScoreComputeResponse(BaseModel):
     """Response body for score computation."""
 
     model_config = ConfigDict(extra="ignore")
 
     findings: List[ScoreFinding] = Field(default_factory=list, description="Scored findings")
-    summary: ScoreSummary = Field(default_factory=ScoreSummary, description="Aggregated scoring summary")
+    totals: ScoreTotals = Field(default_factory=ScoreTotals, description="Aggregated scoring summary")
 
 
-class Wave(BaseModel):
+class PlanItem(BaseModel):
+    """Represents an individual remediation action within a wave."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    id: Optional[str] = Field(None, description="Identifier of the underlying finding")
+    title: Optional[str] = Field(None, description="Title of the finding")
+    priority: str = Field(..., description="Priority bucket of the finding")
+    effort_hours: float = Field(..., ge=0, description="Effort required to remediate")
+    score: float = Field(..., ge=0, le=10, description="Risk score of the finding")
+    risk_saved: float = Field(..., ge=0, description="Estimated risk reduction from completion")
+
+
+class RemediationWave(BaseModel):
     """Represents a remediation wave produced by the optimizer."""
 
     model_config = ConfigDict(extra="ignore")
 
     name: str = Field(..., description="Human readable label for the wave")
-    order: int = Field(..., ge=0, description="Zero-based index of the wave")
-    capacity_hours: float = Field(..., ge=0, description="Effort budget assigned to the wave")
-    findings: List[str] = Field(default_factory=list, description="Identifiers of findings scheduled in the wave")
-    total_risk_reduction: float = Field(0.0, ge=0, description="Aggregate risk reduction achieved by the wave")
-    estimated_effort_hours: float = Field(0.0, ge=0, description="Estimated effort to complete the wave")
+    total_hours: float = Field(..., ge=0, description="Total effort hours within the wave")
+    risk_saved: float = Field(..., ge=0, description="Total risk reduction delivered by the wave")
+    items: List[PlanItem] = Field(default_factory=list, description="Ordered list of planned items")
 
 
-class OptimizeRequest(BaseModel):
+class PlanTotals(BaseModel):
+    """Aggregated view of the remediation plan."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    waves: int = Field(0, ge=0, description="Number of waves")
+    total_hours: float = Field(0.0, ge=0, description="Total effort across all waves")
+    total_risk_saved: float = Field(0.0, ge=0, description="Total risk reduction across all waves")
+
+
+class OptimizePlanRequest(BaseModel):
     """Request payload for the optimizer."""
 
     model_config = ConfigDict(extra="ignore")
 
     findings: List[ScoreFinding] = Field(default_factory=list, description="Findings available for planning")
-    budget_hours: Optional[float] = Field(None, ge=0, description="Total effort budget across all waves")
-    wave_size: Optional[int] = Field(None, ge=1, description="Optional number of findings per wave")
+    max_hours_per_wave: Optional[float] = Field(
+        16.0, ge=1.0, description="Maximum effort capacity for a single wave"
+    )
+    minimum_waves: int = Field(1, ge=1, description="Minimum number of waves to return")
 
 
-class OptimizeResponse(BaseModel):
+class OptimizePlanResponse(BaseModel):
     """Response payload from the optimizer."""
 
     model_config = ConfigDict(extra="ignore")
 
-    waves: List[Wave] = Field(default_factory=list, description="Generated remediation waves")
+    waves: List[RemediationWave] = Field(default_factory=list, description="Generated remediation waves")
+    totals: PlanTotals = Field(default_factory=PlanTotals, description="Aggregate metrics for the plan")
     unassigned: List[str] = Field(default_factory=list, description="Identifiers of findings not placed in any wave")
 
 
@@ -117,27 +170,37 @@ class ImpactRequest(BaseModel):
 
     model_config = ConfigDict(extra="ignore")
 
-    findings: List[ScoreFinding] = Field(default_factory=list, description="Scored findings used for impact analysis")
-    waves: List[Wave] = Field(default_factory=list, description="Planned remediation waves")
+    findings: List[ScoreFinding] = Field(
+        default_factory=list, description="Scored findings used for impact analysis"
+    )
+    waves: List[RemediationWave] = Field(default_factory=list, description="Planned remediation waves")
+    framework: str = Field("CIS", description="Framework to reuse for compliance coverage estimates")
 
 
-class ImpactPoint(BaseModel):
+class RiskCurvePoint(BaseModel):
     """Data point on the risk reduction curve."""
 
     model_config = ConfigDict(extra="ignore")
 
-    label: str = Field(..., description="Label for the curve point")
-    risk_reduction: float = Field(..., ge=0, description="Cumulative risk reduction percentage")
+    wave: str = Field(..., description="Wave label")
+    cumulative_risk_saved: float = Field(..., ge=0, description="Cumulative risk reduction value")
+    percent_of_total: float = Field(..., ge=0, le=100, description="Percentage of total risk reduced")
 
 
-class ImpactResponse(BaseModel):
+class ImpactEstimateResponse(BaseModel):
     """Response payload for impact estimation."""
 
     model_config = ConfigDict(extra="ignore")
 
-    readiness_pct: float = Field(0.0, ge=0, le=100, description="Overall readiness percentage")
-    residual_risk: float = Field(100.0, ge=0, description="Residual risk percentage")
-    risk_saved_curve: List[ImpactPoint] = Field(default_factory=list, description="Risk reduction curve data points")
+    readiness_percent: float = Field(0.0, ge=0, le=100, description="Overall readiness percentage")
+    compliance_boost: float = Field(0.0, ge=0, le=100, description="Estimated compliance coverage increase")
+    residual_risk: float = Field(100.0, ge=0, le=100, description="Residual risk percentage")
+    risk_saved_curve: List[RiskCurvePoint] = Field(
+        default_factory=list, description="Risk reduction curve data points"
+    )
+    controls_covered: List[str] = Field(
+        default_factory=list, description="Identifiers of controls covered by the plan"
+    )
 
 
 class MappingRequest(BaseModel):
@@ -145,19 +208,22 @@ class MappingRequest(BaseModel):
 
     model_config = ConfigDict(extra="ignore")
 
-    findings: List[CanonicalFinding] = Field(default_factory=list, description="Findings to map to controls")
+    findings: List[CanonicalFinding] = Field(
+        default_factory=list, description="Findings to map to controls"
+    )
     framework: str = Field("CIS", description="Compliance framework identifier")
 
 
-class MappingRow(BaseModel):
+class ControlMapping(BaseModel):
     """Row representing a control mapping."""
 
     model_config = ConfigDict(extra="ignore")
 
-    control_id: str = Field(..., description="Control identifier")
+    control: str = Field(..., description="Control identifier")
     title: str = Field(..., description="Control title")
     description: str = Field("", description="Control description")
-    related_findings: List[str] = Field(default_factory=list, description="Identifiers of findings mapped to the control")
+    finding_id: Optional[str] = Field(None, description="Identifier of the mapped finding")
+    cve: Optional[str] = Field(None, description="CVE associated with the finding if present")
 
 
 class MappingResponse(BaseModel):
@@ -166,8 +232,10 @@ class MappingResponse(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
     framework: str = Field(..., description="Framework identifier")
-    coverage_pct: float = Field(0.0, ge=0, le=100, description="Coverage percentage")
-    rows: List[MappingRow] = Field(default_factory=list, description="Control mapping rows")
+    coverage: float = Field(0.0, ge=0, le=100, description="Coverage percentage across the framework")
+    unique_controls: List[str] = Field(default_factory=list, description="Controls covered by at least one finding")
+    mappings: List[ControlMapping] = Field(default_factory=list, description="Detailed mapping rows")
+    unmapped: List[str] = Field(default_factory=list, description="Identifiers of findings without any control mapping")
 
 
 class SummaryRequest(BaseModel):
@@ -176,16 +244,23 @@ class SummaryRequest(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
     findings: List[ScoreFinding] = Field(default_factory=list, description="Findings included in the summary")
-    waves: List[Wave] = Field(default_factory=list, description="Remediation plan included in the summary")
+    waves: List[RemediationWave] = Field(default_factory=list, description="Remediation plan included in the summary")
     notes: Optional[str] = Field(None, description="Optional analyst notes")
+    impact: Optional[ImpactEstimateResponse] = Field(
+        None, description="Pre-computed impact information to embed into the report"
+    )
+    mapping: Optional[MappingResponse] = Field(
+        None, description="Pre-computed control mapping information to embed into the report"
+    )
 
 
-class SummaryResponse(BaseModel):
+class SummaryGenerateResponse(BaseModel):
     """Response payload for summary generation."""
 
     model_config = ConfigDict(extra="ignore")
 
-    report_url: str = Field(..., description="Relative URL where the rendered report can be fetched")
+    path: str = Field(..., description="Relative filesystem path where the report was stored")
+    html: str = Field(..., description="Rendered HTML contents")
 
 
 class NLQueryRequest(BaseModel):
@@ -194,7 +269,21 @@ class NLQueryRequest(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
     query: str = Field(..., description="Natural language prompt")
-    context: Dict[str, Any] = Field(default_factory=dict, description="Optional context to pass to the intent resolver")
+    context: Dict[str, Any] = Field(
+        default_factory=dict, description="Optional context forwarded to the intent resolver"
+    )
+
+
+class NLQueryDetails(BaseModel):
+    """Additional metadata returned for natural language queries."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    matched_keywords: List[str] = Field(default_factory=list, description="Keywords detected in the query")
+    confidence: float = Field(0.0, ge=0, le=1, description="Confidence in the intent resolution")
+    endpoint: Optional[str] = Field(
+        None, description="API endpoint that would satisfy the request if applicable"
+    )
 
 
 class NLQueryResponse(BaseModel):
@@ -202,32 +291,77 @@ class NLQueryResponse(BaseModel):
 
     model_config = ConfigDict(extra="ignore")
 
-    intent: str = Field(..., description="Resolved intent")
-    tool_called: str = Field(..., description="Tool that was executed")
-    result: Dict[str, Any] = Field(default_factory=dict, description="Result returned by the tool")
-    provider_state: Dict[str, Any] = Field(default_factory=dict, description="Additional provider metadata")
+    intent: str = Field(..., description="Resolved intent keyword")
+    response: str = Field(..., description="Natural language response returned by the copilot")
+    details: NLQueryDetails = Field(default_factory=NLQueryDetails, description="Metadata about the decision")
+
+
+class FeedbackSubmitRequest(BaseModel):
+    """Payload submitted when an analyst provides feedback on a recommendation."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    finding_id: str = Field(..., description="Identifier of the finding receiving feedback")
+    action: str = Field(..., description="Type of action recorded e.g. agree/disagree")
+    comment: Optional[str] = Field(None, description="Optional analyst note")
+
+
+class FeedbackResponse(BaseModel):
+    """Response confirming that feedback was recorded."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    status: str = Field(..., description="Acknowledgement message")
+    path: str = Field(..., description="Path to the feedback log file")
+    recorded_at: str = Field(..., description="Timestamp when the feedback was persisted")
+
+
+class AIProviderOption(BaseModel):
+    """Describes an AI provider available to the platform."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    id: str = Field(..., description="Provider identifier")
+    label: str = Field(..., description="Human readable label")
+
+
+class AIProvidersResponse(BaseModel):
+    """List of AI providers exposed through the API."""
+
+    model_config = ConfigDict(extra="ignore")
+
+    providers: List[AIProviderOption] = Field(default_factory=list, description="Registered providers")
 
 
 __all__ = [
+    "AssetContext",
     "CanonicalFinding",
-    "ScoringConfig",
-    "ScoringWeights",
     "IngestResponse",
+    "ScoringWeights",
+    "ScoringConfig",
+    "ScoreComponents",
     "ScoreFinding",
-    "ScoreSummary",
+    "ScoreTotals",
     "ScoreRequest",
-    "ScoreResponse",
-    "Wave",
-    "OptimizeRequest",
-    "OptimizeResponse",
+    "ScoreComputeResponse",
+    "PlanItem",
+    "RemediationWave",
+    "PlanTotals",
+    "OptimizePlanRequest",
+    "OptimizePlanResponse",
     "ImpactRequest",
-    "ImpactResponse",
-    "ImpactPoint",
+    "ImpactEstimateResponse",
+    "RiskCurvePoint",
     "MappingRequest",
     "MappingResponse",
-    "MappingRow",
+    "ControlMapping",
     "SummaryRequest",
-    "SummaryResponse",
+    "SummaryGenerateResponse",
     "NLQueryRequest",
     "NLQueryResponse",
+    "NLQueryDetails",
+    "FeedbackSubmitRequest",
+    "FeedbackResponse",
+    "AIProviderOption",
+    "AIProvidersResponse",
 ]

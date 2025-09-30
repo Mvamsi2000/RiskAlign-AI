@@ -3,13 +3,17 @@ from __future__ import annotations
 
 from fastapi import APIRouter
 
-from server.schemas.api import ImpactRequest, ImpactResponse
+from server.schemas import ImpactEstimateResponse, ImpactRequest
 from server.services.impact import estimate_impact
 
 router = APIRouter(prefix="/api/impact", tags=["impact"])
 
 
-@router.post("/estimate", response_model=ImpactResponse, summary="Estimate impact and readiness")
-async def estimate(payload: ImpactRequest) -> ImpactResponse:
-    """Return placeholder impact metrics."""
+@router.post("/estimate", response_model=ImpactEstimateResponse, summary="Estimate impact and readiness")
+async def estimate(payload: ImpactRequest) -> ImpactEstimateResponse:
+    """Return readiness, residual risk and compliance boost metrics."""
+
     return estimate_impact(payload)
+
+
+__all__ = ["router"]

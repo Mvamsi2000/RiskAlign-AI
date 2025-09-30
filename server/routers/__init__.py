@@ -1,9 +1,12 @@
 """Router exports for the RiskAlign AI API."""
 from __future__ import annotations
 
-from . import health, impact, ingest, mapping, nlq, optimize, scoring, summary
+from . import ai, feedback, findings, health, impact, ingest, mapping, nlq, optimize, scoring, summary
 
 __all__ = [
+    "ai",
+    "feedback",
+    "findings",
     "health",
     "ingest",
     "scoring",
