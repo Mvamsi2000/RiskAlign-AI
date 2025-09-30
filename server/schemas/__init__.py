@@ -1,0 +1,52 @@
+"""Export canonical schemas for external consumers."""
+from __future__ import annotations
+
+from .api import (
+    CanonicalFinding,
+    ImpactPoint,
+    ImpactRequest,
+    ImpactResponse,
+    IngestResponse,
+    MappingRequest,
+    MappingResponse,
+    MappingRow,
+    NLQueryRequest,
+    NLQueryResponse,
+    OptimizeRequest,
+    OptimizeResponse,
+    ScoreFinding,
+    ScoreRequest,
+    ScoreResponse,
+    ScoreSummary,
+    ScoringConfig,
+    ScoringWeights,
+    SummaryRequest,
+    SummaryResponse,
+    Wave,
+)
+from .envelope import MCPEnvelope
+
+__all__ = [
+    "CanonicalFinding",
+    "ImpactPoint",
+    "ImpactRequest",
+    "ImpactResponse",
+    "IngestResponse",
+    "MappingRequest",
+    "MappingResponse",
+    "MappingRow",
+    "NLQueryRequest",
+    "NLQueryResponse",
+    "OptimizeRequest",
+    "OptimizeResponse",
+    "ScoreFinding",
+    "ScoreRequest",
+    "ScoreResponse",
+    "ScoreSummary",
+    "ScoringConfig",
+    "ScoringWeights",
+    "SummaryRequest",
+    "SummaryResponse",
+    "Wave",
+    "MCPEnvelope",
+]
