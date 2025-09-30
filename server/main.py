@@ -1,13 +1,15 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
+from .core.tenancy import get_namespace, namespace_ai_config_path
 from .feedback import feedback_submit, recent_feedback
 from .impact import impact_estimate
 from .nl_router import nl_query
@@ -155,6 +157,24 @@ class SummaryGenerateResponse(BaseModel):
     html: str
 
 
+class AIProviderInfo(BaseModel):
+    id: str
+    label: str
+
+
+class AIProvidersResponse(BaseModel):
+    providers: List[AIProviderInfo]
+
+
+class AIConfigRequest(BaseModel):
+    ai_provider: str = Field(pattern="^(local|online)$")
+
+
+class AIConfigResponse(BaseModel):
+    namespace: str
+    ai_provider: str
+
+
 class NLQueryRequest(BaseModel):
     query: str
 
@@ -186,6 +206,30 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+ADMIN_API_KEY = os.getenv("ADMIN_API_KEY", "")
+
+
+def _require_admin(request: Request) -> None:
+    if not ADMIN_API_KEY:
+        return
+    header = request.headers.get("X-Admin-Key")
+    if header != ADMIN_API_KEY:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid admin key for configuration change",
+        )
+
+
+def _load_ai_config(namespace: str) -> Dict[str, Any]:
+    config_path = namespace_ai_config_path(namespace)
+    if not config_path.exists():
+        return {}
+    try:
+        return json.loads(config_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return {}
 
 
 @app.get("/health")
@@ -236,17 +280,26 @@ def map_controls_endpoint(request: MapControlsRequest) -> MapControlsResponse:
 
 
 @app.post("/api/summary/generate", response_model=SummaryGenerateResponse)
-def generate_summary_endpoint(request: SummaryGenerateRequest) -> SummaryGenerateResponse:
+def generate_summary_endpoint(
+    payload: SummaryGenerateRequest,
+    request: Request,
+) -> SummaryGenerateResponse:
     findings_payload = None
-    if request.findings is not None:
-        findings_payload = [finding.model_dump() for finding in request.findings]
-    payload = generate_summary(
+    if payload.findings is not None:
+        findings_payload = [finding.model_dump() for finding in payload.findings]
+
+    namespace = get_namespace(request)
+    tenant_config = _load_ai_config(namespace)
+
+    summary_payload = generate_summary(
         findings=findings_payload,
-        scope=request.scope or "environment",
-        framework=request.framework,
-        max_hours_per_wave=request.max_hours_per_wave,
+        scope=payload.scope or "environment",
+        framework=payload.framework,
+        max_hours_per_wave=payload.max_hours_per_wave,
+        request=request,
+        tenant_config=tenant_config,
     )
-    return SummaryGenerateResponse.model_validate(payload)
+    return SummaryGenerateResponse.model_validate(summary_payload)
 
 
 @app.post("/api/nl/query", response_model=NLQueryResponse)
@@ -264,3 +317,24 @@ def feedback_submit_endpoint(request: FeedbackRequest) -> FeedbackResponse:
 @app.get("/api/feedback/recent")
 def recent_feedback_endpoint(limit: int = 10) -> List[Dict[str, Any]]:
     return recent_feedback(limit)
+
+
+@app.get("/api/ai/providers", response_model=AIProvidersResponse)
+def list_ai_providers() -> AIProvidersResponse:
+    providers = [
+        AIProviderInfo(id="local", label="Local (Ollama)"),
+        AIProviderInfo(id="online", label="Online (OpenAI)"),
+    ]
+    return AIProvidersResponse(providers=providers)
+
+
+@app.post("/api/ai/config", response_model=AIConfigResponse)
+def update_ai_config(request: Request, payload: AIConfigRequest) -> AIConfigResponse:
+    _require_admin(request)
+    namespace = get_namespace(request)
+    config_path = namespace_ai_config_path(namespace)
+    config_path.write_text(
+        json.dumps({"ai_provider": payload.ai_provider}, indent=2, sort_keys=True),
+        encoding="utf-8",
+    )
+    return AIConfigResponse(namespace=namespace, ai_provider=payload.ai_provider)
