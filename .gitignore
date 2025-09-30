@@ -12,6 +12,9 @@ server/data/**
 # local-only big datasets (never commit)
 server/data_local/
 
+# generated reports/output
+server/output/**
+
 # build/cache
 client/node_modules/**
 **/__pycache__/**

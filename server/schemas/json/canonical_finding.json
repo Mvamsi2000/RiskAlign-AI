@@ -1,0 +1,28 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "CanonicalFinding",
+  "type": "object",
+  "required": ["id", "title"],
+  "properties": {
+    "id": {"type": "string", "description": "Unique identifier for the finding"},
+    "title": {"type": "string", "description": "Short, human readable title"},
+    "description": {"type": ["string", "null"]},
+    "asset": {"type": ["string", "null"]},
+    "severity": {"type": ["string", "null"]},
+    "cvss_score": {"type": ["number", "null"], "minimum": 0, "maximum": 10},
+    "epss": {"type": ["number", "null"], "minimum": 0, "maximum": 1},
+    "kev": {"type": "boolean"},
+    "detected_at": {"type": ["string", "null"], "format": "date-time"},
+    "remediation": {"type": ["string", "null"]},
+    "references": {
+      "type": "array",
+      "items": {"type": "string"}
+    },
+    "tags": {
+      "type": "array",
+      "items": {"type": "string"}
+    },
+    "evidence": {"type": ["string", "null"]}
+  },
+  "additionalProperties": true
+}
