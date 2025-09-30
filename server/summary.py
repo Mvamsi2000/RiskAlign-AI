@@ -3,17 +3,19 @@ from __future__ import annotations
 import json
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Mapping
+from typing import Any, Dict, Iterable, List, Mapping, Optional
 
+from fastapi import Request
 from jinja2 import Environment, FileSystemLoader, select_autoescape
 
+from .ai.usecases import generate_summary_narrative
 from .impact import impact_estimate
 from .mapping import map_to_controls
 from .optimizer import optimize_plan
 from .scoring import score_compute
+from .core.tenancy import get_namespace, output_path
 
 BASE_DIR = Path(__file__).resolve().parent
-OUTPUT_DIR = BASE_DIR / "output"
 
 _template_env = Environment(
     loader=FileSystemLoader(str(BASE_DIR / "templates")),
@@ -28,16 +30,14 @@ def _load_sample_findings() -> List[Dict[str, Any]]:
     return []
 
 
-def _ensure_output_dir() -> None:
-    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-
-
 def generate_summary(
     findings: Iterable[Mapping[str, Any]] | None = None,
     *,
     scope: str = "environment",
     framework: str = "CIS",
     max_hours_per_wave: float = 16.0,
+    request: Optional[Request] = None,
+    tenant_config: Optional[Mapping[str, Any]] = None,
 ) -> Dict[str, Any]:
     findings_list = list(findings or _load_sample_findings())
 
@@ -51,6 +51,26 @@ def generate_summary(
     controls = map_to_controls(findings_list, framework=framework)
 
     rendered_at = datetime.now(UTC)
+    namespace = get_namespace(request)
+
+    ai_context = {
+        "scope": scope,
+        "totals": scoring.get("totals", {}),
+        "waves": plan.get("waves", []),
+        "impact": impact,
+        "controls": {
+            "framework": controls.get("framework"),
+            "coverage": controls.get("coverage"),
+            "unmapped": controls.get("unmapped"),
+        },
+    }
+    ai_narrative = generate_summary_narrative(
+        request,
+        tenant_config=tenant_config,
+        namespace=namespace,
+        context=ai_context,
+    )
+
     template = _template_env.get_template("summary.html")
     html = template.render(
         scope=scope,
@@ -59,10 +79,11 @@ def generate_summary(
         plan=plan,
         impact=impact,
         controls=controls,
+        ai_narrative=ai_narrative,
     )
 
-    _ensure_output_dir()
-    filename = OUTPUT_DIR / f"summary-{rendered_at.strftime('%Y%m%d%H%M%S')}.html"
+    output_dir = output_path(namespace)
+    filename = output_dir / f"summary-{rendered_at.strftime('%Y%m%d%H%M%S')}.html"
     filename.write_text(html, encoding="utf-8")
 
     return {"path": str(filename), "html": html}

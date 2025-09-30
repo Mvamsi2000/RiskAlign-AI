@@ -113,8 +113,33 @@ Open `http://localhost:5173`
 **Priority Buckets (default):**
 - 9.0–10.0 = Critical, 7.0–8.99 = High, 4.0–6.99 = Medium, else Low
 
-**Signals used:** CVSS base, **EPSS**, **KEV**, vendor index (if present)  
+**Signals used:** CVSS base, **EPSS**, **KEV**, vendor index (if present)
 **Context used:** asset criticality, exposure, data sensitivity, SLA/effort
+
+---
+
+## 🤖 AI Modes (Local vs Online)
+- **Default = Local (Ollama):** the backend uses a local Ollama service for narratives/explanations. Launch Ollama and pull the model once:
+
+  ```bash
+  ollama pull llama3:8b
+  ollama run llama3:8b --keep-alive
+  ```
+
+- **Online (OpenAI):** set `OPENAI_API_KEY` and switch via the UI dropdown (header → “AI mode”). The client persists the choice and sends `X-AI-Provider` on every API call.
+- **Per-tenant override:** POST a config with an admin key to save `config/namespaces/<namespace>/ai.json`.
+
+  ```bash
+  curl -X POST "http://localhost:8000/api/ai/config" \
+    -H "Content-Type: application/json" \
+    -H "X-Admin-Key: <your-admin-key>" \
+    -H "X-Namespace: demo" \
+    -d '{"ai_provider":"online"}'
+  ```
+
+- **Env toggles:** `.env.example` lists `AI_PROVIDER_DEFAULT`, base URLs/models, and feature flags (`AI_NARRATIVE_ENABLED`, `AI_SCORING_ENABLED`).
+
+If the selected provider is unavailable the UI surfaces a toast with guidance to switch modes.
 
 ---
 

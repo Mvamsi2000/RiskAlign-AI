@@ -33,6 +33,13 @@
       </ul>
     </section>
 
+    {% if ai_narrative %}
+    <section>
+      <h2>AI Narrative</h2>
+      <p>{{ ai_narrative }}</p>
+    </section>
+    {% endif %}
+
     <section>
       <h2>Remediation Plan</h2>
       <p class="metric">Total waves: {{ plan['totals']['waves'] }} &mdash; Total hours: {{ '%.2f' | format(plan['totals']['total_hours']) }} &mdash; Risk saved: {{ '%.2f' | format(plan['totals']['total_risk_saved']) }}</p>

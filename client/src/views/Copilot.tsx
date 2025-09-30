@@ -1,12 +1,19 @@
 import { useState } from "react";
 
 import { Card } from "../components/Card";
-import { queryIntent } from "../lib/api";
+import { AIProviderId, queryIntent } from "../lib/api";
 
-export function CopilotView() {
+interface CopilotViewProps {
+  providerId: AIProviderId;
+  providerLabel: string;
+}
+
+export function CopilotView({ providerId, providerLabel }: CopilotViewProps) {
   const [query, setQuery] = useState("Suggest the next remediation wave");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<Awaited<ReturnType<typeof queryIntent>> | null>(null);
+
+  const providerBadge = providerId.toUpperCase();
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -24,9 +31,17 @@ export function CopilotView() {
 
   return (
     <Card
-      title="Copilot router"
+      title={
+        <div className="flex items-center justify-between">
+          <span>Copilot router</span>
+          <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
+            AI: {providerBadge}
+          </span>
+        </div>
+      }
       description="Ask natural-language questions. The router suggests the best backend endpoint."
     >
+      <p className="mb-3 text-xs text-slate-400">Active provider: {providerLabel}</p>
       <form onSubmit={handleSubmit} className="flex flex-col gap-3 md:flex-row">
         <input
           className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-700 focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/30"
