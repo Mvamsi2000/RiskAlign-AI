@@ -1,0 +1,21 @@
+.DS_Store
+
+# ignore all data by default…
+server/data/**
+
+# …but DO track curated demo samples + small caches
+!server/data/samples/
+!server/data/samples/**
+!server/data/epss.csv
+!server/data/kev.txt
+
+# local-only big datasets (never commit)
+server/data_local/
+
+# generated reports/output
+server/output/**
+
+# build/cache
+client/node_modules/**
+**/__pycache__/**
+*.pyc

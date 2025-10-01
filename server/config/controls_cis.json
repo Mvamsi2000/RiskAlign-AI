@@ -1,13 +1,46 @@
 {
-  "CVE-2023-12345": [
-    {"control": "CIS 4.1", "description": "Establish and Maintain a Secure Configuration Process"},
-    {"control": "CIS 6.2", "description": "Establish a Vulnerability Management Process"}
-  ],
-  "CVE-2024-9876": [
-    {"control": "CIS 7.6", "description": "Remediate Detected Vulnerabilities"}
-  ],
-  "CVE-2022-56789": [
-    {"control": "CIS 3.3", "description": "Configure Automatic Session Locking"},
-    {"control": "CIS 4.9", "description": "Manage Machine Identities"}
-  ]
+  "CIS": {
+    "CIS-01": {
+      "name": "Inventory and Control of Enterprise Assets",
+      "description": "Maintain an accurate inventory of assets and ensure authorized use only.",
+      "keywords": ["inventory", "asset"],
+      "cves": []
+    },
+    "CIS-04": {
+      "name": "Secure Configuration of Enterprise Assets and Software",
+      "description": "Establish and maintain secure configurations, remediating vulnerabilities promptly.",
+      "keywords": ["patch", "configuration", "apache", "kubernetes"],
+      "cves": ["CVE-2023-25690", "CVE-2020-0796"]
+    },
+    "CIS-07": {
+      "name": "Continuous Vulnerability Management",
+      "description": "Continuously acquire and remediate vulnerabilities, prioritizing based on risk.",
+      "keywords": ["vulnerability", "scan", "tls"],
+      "cves": ["CVE-2023-25690", "CVE-2020-0796"]
+    },
+    "CIS-11": {
+      "name": "Secure Configuration for Network Infrastructure",
+      "description": "Establish secure configurations for network devices such as firewalls and load balancers.",
+      "keywords": ["tls", "network", "cipher"],
+      "cves": []
+    },
+    "CIS-13": {
+      "name": "Data Protection",
+      "description": "Develop processes to identify, classify, securely handle, retain, and dispose of data.",
+      "keywords": ["s3", "data", "bucket", "invoice"],
+      "cves": []
+    },
+    "CIS-16": {
+      "name": "Application Software Security",
+      "description": "Manage the security life cycle of software deployed in production.",
+      "keywords": ["application", "api", "server"],
+      "cves": ["CVE-2023-25690"]
+    },
+    "CIS-18": {
+      "name": "Penetration Testing",
+      "description": "Establish a program to identify vulnerabilities and exposures through regular testing.",
+      "keywords": ["penetration", "testing", "ssh", "brute"],
+      "cves": []
+    }
+  }
 }

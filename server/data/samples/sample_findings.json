@@ -1,0 +1,136 @@
+[
+  {
+    "id": "F-001",
+    "title": "Apache HTTP Server mod_proxy remote code execution",
+    "description": "The Apache HTTP Server is vulnerable to a request smuggling flaw that allows remote code execution.",
+    "cve": "CVE-2023-25690",
+    "severity": "critical",
+    "cvss": 9.8,
+    "epss": 0.92,
+    "mvi": 0.81,
+    "kev": true,
+    "asset": {
+      "name": "api-gateway-01",
+      "criticality": "High",
+      "exposure": "Internet",
+      "data_sensitivity": "Cardholder"
+    },
+    "remediation": "Apply Apache HTTP Server 2.4.56 or later and enable request header normalization.",
+    "references": [
+      "https://httpd.apache.org/security/vulnerabilities_24.html"
+    ],
+    "tags": ["web", "rce", "kev"],
+    "evidence": "Matched response headers indicate vulnerable version." 
+  },
+  {
+    "id": "F-002",
+    "title": "Outdated TLS cipher suites on customer portal",
+    "description": "The customer portal accepts deprecated TLS 1.0 connections with RC4-based cipher suites.",
+    "severity": "high",
+    "cvss": 7.3,
+    "epss": 0.32,
+    "mvi": 0.42,
+    "kev": false,
+    "asset": {
+      "name": "portal-edge-lb",
+      "criticality": "Medium",
+      "exposure": "Internet",
+      "data_sensitivity": "PII"
+    },
+    "remediation": "Disable legacy protocols and enforce TLS 1.2+ with AES-GCM cipher suites.",
+    "references": [
+      "https://www.cisecurity.org/insights/blog/the-importance-of-tls-1-2"
+    ],
+    "tags": ["tls", "crypto"],
+    "evidence": "Qualys SSL Labs scan grade B; RC4-SHA negotiated." 
+  },
+  {
+    "id": "F-003",
+    "title": "Microsoft SMBv3 compression remote code execution",
+    "description": "A remote code execution vulnerability exists in SMBv3 when handling compressed packets.",
+    "cve": "CVE-2020-0796",
+    "severity": "critical",
+    "cvss": 10.0,
+    "epss": 0.97,
+    "mvi": 0.9,
+    "kev": true,
+    "asset": {
+      "name": "win-file-02",
+      "criticality": "High",
+      "exposure": "Internal",
+      "data_sensitivity": "Finance"
+    },
+    "remediation": "Install Microsoft's security update KB4551762 or later.",
+    "references": [
+      "https://msrc.microsoft.com/update-guide/vulnerability/CVE-2020-0796"
+    ],
+    "tags": ["windows", "smb", "rce", "wormable"],
+    "evidence": "Banner identified Windows Server 2019 build 18363." 
+  },
+  {
+    "id": "F-004",
+    "title": "Kubernetes API server allows anonymous access",
+    "description": "The Kubernetes API server permits unauthenticated requests to sensitive endpoints.",
+    "severity": "high",
+    "cvss": 8.6,
+    "epss": 0.61,
+    "mvi": 0.55,
+    "kev": false,
+    "asset": {
+      "name": "k8s-control-01",
+      "criticality": "High",
+      "exposure": "Internal",
+      "data_sensitivity": "Platform"
+    },
+    "remediation": "Disable anonymous-auth and tighten RBAC roles for the API server.",
+    "references": [
+      "https://kubernetes.io/docs/reference/access-authn-authz/controlling-access/"
+    ],
+    "tags": ["kubernetes", "misconfiguration"],
+    "evidence": "curl https://cluster:6443/api --insecure returned 200." 
+  },
+  {
+    "id": "F-005",
+    "title": "Public S3 bucket exposes customer invoices",
+    "description": "An Amazon S3 bucket hosting monthly invoices is publicly listable and allows anonymous downloads.",
+    "severity": "medium",
+    "cvss": 6.7,
+    "epss": 0.21,
+    "mvi": 0.6,
+    "kev": false,
+    "asset": {
+      "name": "s3://acme-invoices",
+      "criticality": "High",
+      "exposure": "Internet",
+      "data_sensitivity": "Financial"
+    },
+    "remediation": "Apply bucket policies to restrict access to authenticated IAM principals and enable logging.",
+    "references": [
+      "https://docs.aws.amazon.com/AmazonS3/latest/userguide/security-best-practices.html"
+    ],
+    "tags": ["s3", "exposure"],
+    "evidence": "aws s3 ls s3://acme-invoices --no-sign-request succeeded." 
+  },
+  {
+    "id": "F-006",
+    "title": "Excessive SSH login failures on production database",
+    "description": "System logs indicate a sustained brute-force attempt targeting the production database host.",
+    "severity": "medium",
+    "cvss": 5.4,
+    "epss": 0.12,
+    "mvi": 0.38,
+    "kev": false,
+    "asset": {
+      "name": "db-prod-03",
+      "criticality": "High",
+      "exposure": "Internal",
+      "data_sensitivity": "PHI"
+    },
+    "remediation": "Enable MFA for privileged accounts and block offending source IPs.",
+    "references": [
+      "https://www.ssh.com/academy/attack/brute-force"
+    ],
+    "tags": ["ssh", "bruteforce", "monitoring"],
+    "evidence": "/var/log/auth.log recorded 400 failed logins from 203.0.113.24." 
+  }
+]

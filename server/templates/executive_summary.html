@@ -1,55 +1,162 @@
 <!DOCTYPE html>
 <html lang="en">
   <head>
-    <meta charset="UTF-8" />
-    <title>RiskAlign-AI Executive Summary</title>
-    <style>
-      body { font-family: Arial, sans-serif; margin: 2rem; color: #1f2933; }
-      h1, h2 { color: #0b7285; }
-      .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1.5rem; }
-      .card { border: 1px solid #ced4da; border-radius: 8px; padding: 1rem; box-shadow: 0 2px 4px rgba(15, 23, 42, 0.08); }
-      table { border-collapse: collapse; width: 100%; }
-      th, td { text-align: left; border-bottom: 1px solid #dee2e6; padding: 0.5rem; }
-    </style>
+    <meta charset="utf-8" />
+    <title>RiskAlign Executive Summary</title>
+    <link rel="stylesheet" href="/reports/base.css" />
   </head>
   <body>
-    <h1>Executive Summary</h1>
-    <p>{{ narrative }}</p>
+    <main>
+      <header>
+        <p class="badge">RiskAlign-AI • Executive Report</p>
+        <h1>Cyber Risk Decision Brief</h1>
+        <p>Generated {{ generated_at }} using the demo dataset.</p>
+      </header>
 
-    <div class="grid">
-      <div class="card">
-        <h2>Top Priorities</h2>
-        <ol>
-          {% for item in top_findings %}
-          <li>{{ item.id }} — {{ item.title }} ({{ item.priority }})</li>
+      <section>
+        <h2>At-a-glance metrics</h2>
+        <div class="metric-grid">
+          <div class="metric">
+            <span>Findings scored</span>
+            <strong>{{ score_summary.count }}</strong>
+          </div>
+          <div class="metric">
+            <span>Average risk score</span>
+            <strong>{{ '%.2f' | format(score_summary.average_score) }}</strong>
+          </div>
+          <div class="metric">
+            <span>Plan readiness</span>
+            <strong>{{ '%.1f' | format(impact.readiness_percent) }}%</strong>
+          </div>
+          <div class="metric">
+            <span>Compliance coverage</span>
+            <strong>{{ '%.1f' | format(mapping.coverage) }}%</strong>
+          </div>
+        </div>
+      </section>
+
+      <section>
+        <h2>Priority distribution</h2>
+        <ul>
+          {% for priority, count in score_summary.priority_counts.items() %}
+          <li><strong>{{ priority }}</strong>: {{ count }} findings</li>
           {% endfor %}
-        </ol>
-      </div>
-      <div class="card">
-        <h2>Risk Reduction</h2>
-        <p><strong>Potential Reduction:</strong> {{ impact.breach_reduction|round(1) }}%</p>
-        <p><strong>Compliance Gain:</strong> {{ impact.compliance_gain|round(1) }}%</p>
-      </div>
-    </div>
+        </ul>
+        {% if notes %}
+        <p><em>Analyst notes:</em> {{ notes }}</p>
+        {% endif %}
+      </section>
 
-    <h2>Control Coverage</h2>
-    <table>
-      <thead>
-        <tr>
-          <th>Control</th>
-          <th>Finding</th>
-          <th>Description</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for mapping in controls %}
-        <tr>
-          <td>{{ mapping.control }}</td>
-          <td>{{ mapping.finding }}</td>
-          <td>{{ mapping.description }}</td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+      <section>
+        <h2>Top risks</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Finding</th>
+              <th>Score</th>
+              <th>Priority</th>
+              <th>Effort (h)</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for finding in score_summary.top_risks %}
+            <tr>
+              <td>{{ finding.title }}</td>
+              <td>{{ '%.2f' | format(finding.score) }}</td>
+              <td>{{ finding.priority }}</td>
+              <td>{{ '%.1f' | format(finding.effort_hours) }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </section>
+
+      <section>
+        <h2>Remediation waves</h2>
+        {% if waves %}
+        <p>
+          {{ plan_totals.waves }} waves, {{ '%.1f' | format(plan_totals.total_hours) }} total hours,
+          {{ '%.1f' | format(plan_totals.total_risk_saved) }} risk units removed.
+        </p>
+        <table>
+          <thead>
+            <tr>
+              <th>Wave</th>
+              <th>Items</th>
+              <th>Effort (h)</th>
+              <th>Risk saved</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for wave in waves %}
+            <tr>
+              <td>{{ wave.name }}</td>
+              <td>{{ wave.items | length }}</td>
+              <td>{{ '%.1f' | format(wave.total_hours) }}</td>
+              <td>{{ '%.1f' | format(wave.risk_saved) }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <p>No remediation waves generated. All issues fall below the risk tolerance.</p>
+        {% endif %}
+      </section>
+
+      <section>
+        <h2>Risk reduction curve</h2>
+        <table>
+          <thead>
+            <tr>
+              <th>Wave</th>
+              <th>Cumulative risk saved</th>
+              <th>% of total</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for point in impact.risk_saved_curve %}
+            <tr>
+              <td>{{ point.wave }}</td>
+              <td>{{ '%.1f' | format(point.cumulative_risk_saved) }}</td>
+              <td>{{ '%.1f' | format(point.percent_of_total) }}%</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </section>
+
+      <section>
+        <h2>Compliance coverage</h2>
+        {% if mapping.mappings %}
+        <p>{{ '%.1f' | format(mapping.coverage) }}% of CIS controls touched by this plan.</p>
+        <table>
+          <thead>
+            <tr>
+              <th>Control</th>
+              <th>Title</th>
+              <th>Finding</th>
+              <th>CVE</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in mapping.mappings %}
+            <tr>
+              <td>{{ row.control }}</td>
+              <td>{{ row.title }}</td>
+              <td>{{ row.finding_id }}</td>
+              <td>{{ row.cve or 'N/A' }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <p>No controls matched the current findings. Add CVE references for improved mapping.</p>
+        {% endif %}
+      </section>
+
+      <footer>
+        RiskAlign-AI demo output. Extend this template with your branding for production use.
+      </footer>
+    </main>
   </body>
 </html>

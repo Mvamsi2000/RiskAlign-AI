@@ -2,6 +2,9 @@ import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import {
+  AIProviderId,
+  ImpactEstimateResponse,
+  MapControlsResponse,
   computeScores,
   estimateImpact,
   fetchSampleFindings,
@@ -10,43 +13,45 @@ import {
   optimizePlan
 } from "../lib/api";
 
-export function useRiskData(maxHoursPerWave: number) {
+export function useRiskData(maxHoursPerWave: number, aiProvider: AIProviderId) {
   const findingsQuery = useQuery({
-    queryKey: ["findings"],
+    queryKey: ["findings", aiProvider],
     queryFn: fetchSampleFindings
   });
 
   const scoresQuery = useQuery({
-    queryKey: ["scores", findingsQuery.data],
+    queryKey: ["scores", findingsQuery.data, aiProvider],
     enabled: Boolean(findingsQuery.data?.length),
     queryFn: () => computeScores(findingsQuery.data ?? [])
   });
 
   const wavesQuery = useQuery({
-    queryKey: ["waves", findingsQuery.data, maxHoursPerWave],
-    enabled: Boolean(findingsQuery.data?.length),
-    queryFn: () => optimizePlan(findingsQuery.data ?? [], maxHoursPerWave)
+    queryKey: ["waves", scoresQuery.data, maxHoursPerWave, aiProvider],
+    enabled: Boolean(scoresQuery.data?.findings.length),
+    queryFn: () => optimizePlan(scoresQuery.data?.findings ?? [], maxHoursPerWave)
   });
 
   const controlsQuery = useQuery({
-    queryKey: ["controls", findingsQuery.data],
-    enabled: Boolean(findingsQuery.data?.some((item) => item.cve)),
+    queryKey: ["controls", findingsQuery.data, aiProvider],
+    enabled: Boolean(findingsQuery.data?.length),
     queryFn: () => mapControls(findingsQuery.data ?? [])
   });
 
   const impactQuery = useQuery({
-    queryKey: ["impact", findingsQuery.data, wavesQuery.data],
-    enabled: Boolean(findingsQuery.data?.length && wavesQuery.data?.waves.length),
-    queryFn: () => estimateImpact(findingsQuery.data ?? [], wavesQuery.data?.waves ?? [])
+    queryKey: ["impact", scoresQuery.data, wavesQuery.data, aiProvider],
+    enabled: Boolean(scoresQuery.data?.findings.length && wavesQuery.data?.waves.length),
+    queryFn: () => estimateImpact(scoresQuery.data?.findings ?? [], wavesQuery.data?.waves ?? [])
   });
 
   const summaryQuery = useQuery({
-    queryKey: ["summary", findingsQuery.data, maxHoursPerWave],
-    enabled: Boolean(findingsQuery.data?.length),
+    queryKey: ["summary", scoresQuery.data, wavesQuery.data, impactQuery.data, controlsQuery.data, aiProvider],
+    enabled: Boolean(scoresQuery.data?.findings.length && wavesQuery.data?.waves.length && impactQuery.data),
     queryFn: () =>
       generateSummary({
-        findings: findingsQuery.data ?? [],
-        max_hours_per_wave: maxHoursPerWave
+        findings: scoresQuery.data?.findings ?? [],
+        waves: wavesQuery.data?.waves ?? [],
+        impact: impactQuery.data as ImpactEstimateResponse,
+        mapping: controlsQuery.data as MapControlsResponse
       })
   });
 
